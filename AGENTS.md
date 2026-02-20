@@ -128,6 +128,10 @@ npx tsc --noEmit
 
 **No exceptions.** If any command fails, the task is not complete.
 
+## Commit Messages
+
+Use conventional commit style messages that are no longer than 8 words.
+
 ## 📁 Work Directory Structure
 
 ### Use `work/` for Temporary Files

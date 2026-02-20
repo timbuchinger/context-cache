@@ -1,5 +1,9 @@
 # Context Cache
 
+<p align="center">
+  <img src="icon.png" alt="Context Cache" />
+</p>
+
 A memory storage and retrieval system for AI coding agents. Context Cache enables intelligent search across your markdown notes and conversation transcripts using hybrid search (BM25 + vector embeddings) with zero configuration.
 
 ## ✨ Features
