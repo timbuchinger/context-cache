@@ -1,13 +1,9 @@
 ---
 name: kb-organize
-description: Organize the knowledge base markdown files according to the standard structure. This ensures information is easy to find and maintains consistency across the knowledge base.
+description: Organize the knowledge base markdown files according to the standard structure. Use when the user asks to "organize my knowledge base", "clean up my notes", "restructure my documentation", or when files are misplaced, inconsistently named, or structure is unclear.
 ---
 
 # Knowledge Base Organize Skill
-
-## Purpose
-
-Organize the knowledge base markdown files according to the standard structure. This ensures information is easy to find and maintains consistency across the knowledge base.
 
 ## Standard Structure
 
@@ -28,21 +24,6 @@ Organize the knowledge base markdown files according to the standard structure. 
     ├── typescript.md          # TypeScript patterns
     └── ...                    # Other topic files
 ```
-
-## When to Use
-
-**Use this skill when:**
-- User explicitly asks to organize the knowledge base
-- Knowledge base structure is unclear or inconsistent
-- Files are misplaced or hard to find
-- Adding multiple new files at once
-- Onboarding to a new project that needs documentation
-
-**Triggers:**
-- "Organize my knowledge base"
-- "Clean up my notes"
-- "Restructure my documentation"
-- After major documentation additions
 
 ## Workflow
 

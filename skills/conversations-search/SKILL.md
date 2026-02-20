@@ -1,30 +1,9 @@
 ---
 name: conversations-search
-description: Search through your own conversation history to recover context, decisions, and solutions from past sessions. This gives you memory across sessions - you don't automatically remember past conversations, so use this tool proactively.
+description: Search through conversation history to recover context, decisions, and solutions from past sessions. Use proactively before starting any task, when the user asks "have we discussed X?", "what did we decide about Y?", "how did we implement Z?", or mentions past work. You don't automatically remember past conversations.
 ---
 
 # Conversations Search Skill
-
-## Purpose
-
-Search through your own conversation history to recover context, decisions, and solutions from past sessions. This gives you memory across sessions - you don't automatically remember past conversations, so use this tool proactively.
-
-## When to Use
-
-**Use this skill BEFORE starting any task to:**
-- Recover past decisions and rationale
-- Find previously implemented solutions
-- Avoid reinventing work already done
-- Understand historical context
-- Learn from past mistakes or successes
-
-**Specific triggers:**
-- "Have we discussed X before?"
-- "What did we decide about Y?"
-- "How did we implement Z?"
-- Starting work on a feature/bug
-- User mentions "like we did last time"
-- Debugging a recurring issue
 
 ## MCP Tools Available
 
