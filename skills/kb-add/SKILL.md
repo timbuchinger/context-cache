@@ -1,24 +1,9 @@
 ---
 name: kb-add
-description: Directly add or update content in the user's markdown knowledge base. Use this to store information that should be remembered across sessions, including discoveries, decisions, patterns, and solutions.
+description: Directly add or update content in the user's markdown knowledge base. Use when the user says "remember this", "save this", or when discovering valuable information, making architectural decisions, or finding solutions worth preserving across sessions.
 ---
 
 # Knowledge Base Add Skill
-
-## Purpose
-
-Directly add or update content in the user's markdown knowledge base. Use this to store information that should be remembered across sessions, including discoveries, decisions, patterns, and solutions.
-
-## When to Use
-
-**Use this skill whenever:**
-- User explicitly asks to "remember this" or "save this"
-- You discover valuable information worth preserving
-- You implement a solution that should be documented
-- Making important architectural decisions
-- Learning project-specific patterns or gotchas
-- Finding solutions to tricky problems
-- Documenting new technologies or tools
 
 ## Important: Search First!
 

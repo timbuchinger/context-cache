@@ -1,31 +1,9 @@
 ---
 name: kb-search
-description: Search through the user's markdown knowledge base to find relevant notes, documentation, and information. The knowledge base contains structured information that the user has explicitly saved for future reference.
+description: Search through the user's markdown knowledge base to find relevant notes, documentation, and information. Use when the user references "my notes", asks what their notes say about a topic, or before adding new content to check for duplicates.
 ---
 
 # Knowledge Base Search Skill
-
-## Purpose
-
-Search through the user's markdown knowledge base to find relevant notes, documentation, and information. The knowledge base contains structured information that the user has explicitly saved for future reference.
-
-## When to Use
-
-**Use this skill when you need to:**
-- Find existing documentation on a topic
-- Check what information is already stored
-- Locate specific code examples or patterns
-- Retrieve technical reference material
-- Understand previously documented decisions
-- Find related topics to current work
-
-**Specific triggers:**
-- "What do my notes say about X?"
-- "Find documentation on Y"
-- "Is there anything in the knowledge base about Z?"
-- Before adding new information (check for duplicates)
-- When user references "my notes" or "documentation"
-- Starting work on documented projects
 
 ## MCP Tool Available
 
