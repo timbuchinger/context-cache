@@ -1,0 +1,22 @@
+services:
+  kb-indexer:
+    build: .
+    image: context-cache-kb-indexer
+    environment:
+      # Override the default ~/git/knowledge-base paths so they work inside
+      # the container regardless of the host user's home directory.
+      - CONTEXT_CACHE_KB_PATH=/data/knowledge-base
+      - CONTEXT_CACHE_DB_PATH=/data/knowledge-base/db.sqlite
+    volumes:
+      # Mount the host knowledge-base directory into the container.
+      # The DB file (db.sqlite) will be written here too, keeping it
+      # alongside the source files just as it is on the host.
+      - ${HOME}/git/knowledge-base:/data/knowledge-base
+      # Persist the Xenova/HuggingFace model cache so the embedding model
+      # is only downloaded once, not on every container restart.
+      - model-cache:/root/.cache
+    restart: unless-stopped
+
+volumes:
+  model-cache:
+    driver: local
