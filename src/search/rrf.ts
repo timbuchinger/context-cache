@@ -1,10 +1,13 @@
-export interface RankedResult {
-  id: number;
+export interface RankedResult<T extends string | number = number> {
+  id: T;
   score: number;
 }
 
-export function mergeWithRRF(resultLists: RankedResult[][], k: number = 60): RankedResult[] {
-  const scores = new Map<number, number>();
+export function mergeWithRRF<T extends string | number = number>(
+  resultLists: RankedResult<T>[][],
+  k: number = 60
+): RankedResult<T>[] {
+  const scores = new Map<T, number>();
 
   for (const results of resultLists) {
     results.forEach((result, rank) => {

@@ -143,4 +143,82 @@ describe('Conversation Search', () => {
     });
     expect(typeof results[0].score).toBe('number');
   });
+
+  describe('hybrid search (BM25 + vector)', () => {
+    function insertEmbedding(db: Database.Database, exchangeId: string, embedding: number[]): void {
+      const buf = Buffer.from(new Float32Array(embedding).buffer);
+      db.prepare('UPDATE exchanges SET embedding = ? WHERE id = ?').run(buf, exchangeId);
+    }
+
+    function makeEmbedding(hotDimension: number): number[] {
+      // 384-d embedding with 1.0 at one dimension, 0 elsewhere
+      return new Array(384).fill(0).map((_, i) => i === hotDimension ? 1.0 : 0.0);
+    }
+
+    test('returns BM25 results when no queryEmbedding provided', async () => {
+      const conv = makeConversation('conv-1', 'session-1');
+      insertConversation(db, conv, 'hash1');
+      insertExchange(db, makeExchange('ex-1', 'conv-1', 0, 'TypeScript types', 'TypeScript answer'));
+
+      const results = await searchConversations(db, 'TypeScript');
+      expect(results.length).toBe(1);
+      expect(results[0].exchangeId).toBe('ex-1');
+    });
+
+    test('includes semantically matching exchange when queryEmbedding is provided', async () => {
+      const conv = makeConversation('conv-1', 'session-1');
+      insertConversation(db, conv, 'hash1');
+
+      // ex-1: keyword match but no embedding
+      insertExchange(db, makeExchange('ex-1', 'conv-1', 0, 'database query', 'database answer'));
+
+      // ex-2: no keyword match but semantically very similar (same hot dimension)
+      insertExchange(db, makeExchange('ex-2', 'conv-1', 1, 'completely different words here', 'unrelated text'));
+      insertEmbedding(db, 'ex-2', makeEmbedding(5));
+
+      const queryEmbedding = makeEmbedding(5); // same dimension as ex-2
+      const results = await searchConversations(db, 'database', { queryEmbedding });
+
+      // ex-2 should appear because vector search finds it, even though BM25 would miss it
+      const ids = results.map(r => r.exchangeId);
+      expect(ids).toContain('ex-2');
+    });
+
+    test('exchange in both BM25 and vector results ranks highest', async () => {
+      const conv = makeConversation('conv-1', 'session-1');
+      insertConversation(db, conv, 'hash1');
+
+      // ex-1: keyword match AND semantic match
+      insertExchange(db, makeExchange('ex-1', 'conv-1', 0, 'embedding vector search', 'embedding vector answer'));
+      insertEmbedding(db, 'ex-1', makeEmbedding(10));
+
+      // ex-2: keyword match only
+      insertExchange(db, makeExchange('ex-2', 'conv-1', 1, 'embedding keyword', 'embedding text'));
+
+      // ex-3: vector match only (different hot dimension from query to avoid collision)
+      insertExchange(db, makeExchange('ex-3', 'conv-1', 2, 'unrelated words here', 'no match'));
+      insertEmbedding(db, 'ex-3', makeEmbedding(20));
+
+      const queryEmbedding = makeEmbedding(10); // matches ex-1 exactly
+      const results = await searchConversations(db, 'embedding', { queryEmbedding });
+
+      expect(results.length).toBeGreaterThan(0);
+      // ex-1 appears in both lists, should be ranked first
+      expect(results[0].exchangeId).toBe('ex-1');
+    });
+
+    test('scores are normalized to 0-1 range when queryEmbedding provided', async () => {
+      const conv = makeConversation('conv-1', 'session-1');
+      insertConversation(db, conv, 'hash1');
+      insertExchange(db, makeExchange('ex-1', 'conv-1', 0, 'test phrase here', 'test answer here'));
+      insertEmbedding(db, 'ex-1', makeEmbedding(7));
+
+      const queryEmbedding = makeEmbedding(7);
+      const results = await searchConversations(db, 'test', { queryEmbedding });
+
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].score).toBeGreaterThan(0);
+      expect(results[0].score).toBeLessThanOrEqual(1.0);
+    });
+  });
 });

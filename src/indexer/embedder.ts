@@ -22,7 +22,9 @@ export async function createEmbedder(): Promise<Embedder> {
       }
 
       const output = await embeddingPipeline(text, { pooling: 'mean', normalize: true });
-      return Array.from(output.data) as number[];
+      const result = Array.from(output.data) as number[];
+      output.dispose();
+      return result;
     }
   };
 

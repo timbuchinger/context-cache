@@ -130,7 +130,13 @@ class MCPServerImpl implements MCPServer {
 
         const db = new Database(this.dbPath);
         try {
-          const results = await searchConversations(db, query, { limit });
+          let queryEmbedding: number[] | undefined;
+          try {
+            const embedder = await createEmbedder();
+            queryEmbedding = await embedder.generateEmbedding(query);
+          } catch { /* fall back to BM25 only */ }
+
+          const results = await searchConversations(db, query, { limit, queryEmbedding });
           const formatted = formatConversationResults(results, 'markdown');
 
           return {
@@ -268,7 +274,13 @@ class MCPServerImpl implements MCPServer {
 
       const db = initDatabase(this.dbPath);
       try {
-        const results = await searchConversations(db, query, { limit });
+        let queryEmbedding: number[] | undefined;
+        try {
+          const embedder = await createEmbedder();
+          queryEmbedding = await embedder.generateEmbedding(query);
+        } catch { /* fall back to BM25 only */ }
+
+        const results = await searchConversations(db, query, { limit, queryEmbedding });
         const formatted = formatConversationResults(results, 'json');
 
         return {
@@ -459,7 +471,13 @@ export async function runMCPServer(dbPath: string): Promise<void> {
 
       const db = initDatabase(dbPath);
       try {
-        const results = await searchConversations(db, query, { limit, after, before });
+        let queryEmbedding: number[] | undefined;
+        try {
+          const embedder = await createEmbedder();
+          queryEmbedding = await embedder.generateEmbedding(query);
+        } catch { /* fall back to BM25 only */ }
+
+        const results = await searchConversations(db, query, { limit, after, before, queryEmbedding });
         const formatted = formatConversationResults(results, response_format);
 
         return {
