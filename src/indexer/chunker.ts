@@ -1,9 +1,9 @@
-export function chunkText(text: string, chunkSize: number, overlap: number): string[] {
+export function* chunkTextGenerator(text: string, chunkSize: number, overlap: number): Generator<string> {
   if (text.length <= chunkSize) {
-    return [text];
+    yield text;
+    return;
   }
 
-  const chunks: string[] = [];
   let start = 0;
 
   while (start < text.length) {
@@ -17,7 +17,7 @@ export function chunkText(text: string, chunkSize: number, overlap: number): str
       }
     }
 
-    chunks.push(text.substring(start, end).trim());
+    yield text.substring(start, end).trim();
 
     // Move start forward, accounting for overlap
     start = end - overlap;
@@ -27,6 +27,8 @@ export function chunkText(text: string, chunkSize: number, overlap: number): str
       break;
     }
   }
+}
 
-  return chunks;
+export function chunkText(text: string, chunkSize: number, overlap: number): string[] {
+  return Array.from(chunkTextGenerator(text, chunkSize, overlap));
 }

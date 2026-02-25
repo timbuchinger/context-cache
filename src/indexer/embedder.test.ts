@@ -13,7 +13,9 @@ describe('Embedder', () => {
       if (url.includes('/api/tags')) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ models: [] })
+          json: () => Promise.resolve({ models: [] }),
+          text: () => Promise.resolve(''),
+          bodyUsed: false
         });
       }
       if (url.includes('/api/embed')) {
@@ -22,7 +24,8 @@ describe('Embedder', () => {
           json: () =>
             Promise.resolve({
               embeddings: [new Array(768).fill(0.1)] // nomic-embed-text is 768 dims
-            })
+            }),
+          bodyUsed: true
         });
       }
       return Promise.reject(new Error('Unknown URL'));
@@ -43,7 +46,9 @@ describe('Embedder', () => {
       if (url.includes('/api/tags')) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ models: [] })
+          json: () => Promise.resolve({ models: [] }),
+          text: () => Promise.resolve(''),
+          bodyUsed: false
         });
       }
       if (url.includes('/api/embed')) {
@@ -52,7 +57,8 @@ describe('Embedder', () => {
           json: () =>
             Promise.resolve({
               embeddings: [new Array(768).fill(0.5)]
-            })
+            }),
+          bodyUsed: true
         });
       }
       return Promise.reject(new Error('Unknown URL'));
