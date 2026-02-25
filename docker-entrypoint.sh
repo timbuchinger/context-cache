@@ -8,7 +8,7 @@ echo ""
 
 while true; do
   echo "⏰  $(date -u '+%Y-%m-%d %H:%M:%S UTC') — running indexer..."
-  if node /app/dist/indexer-cli.js; then
+  if node /app/dist/indexer-cli.js --quiet; then
     echo "✅  Indexer completed successfully"
   else
     echo "❌  Indexer exited with error (exit code $?)"

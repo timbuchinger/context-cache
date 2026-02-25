@@ -14,6 +14,7 @@ Usage: context-cache-index [options]
 Options:
   --path <dir>       Path to knowledge base (default: from config)
   --db <path>        Path to database (default: from config)
+  --quiet            Suppress verbose output, show only summary
   --help, -h         Show this help message
 
 Environment Variables:
@@ -23,7 +24,7 @@ Environment Variables:
 Examples:
   context-cache-index
   context-cache-index --path ~/my-notes
-  context-cache-index --db ~/custom/db.sqlite --path ~/notes
+  context-cache-index --quiet --db ~/custom/db.sqlite --path ~/notes
 `);
 }
 
@@ -38,6 +39,7 @@ async function main() {
   // Parse arguments
   let kbPath = getConfig('knowledgeBasePath') as string;
   let dbPath = getConfig('databasePath') as string;
+  const quiet = args.includes('--quiet');
 
   const pathIndex = args.findIndex(arg => arg === '--path');
   if (pathIndex !== -1 && args[pathIndex + 1]) {
@@ -56,61 +58,84 @@ async function main() {
     process.exit(1);
   }
 
-  console.log('📚 Context Cache Indexer\n');
-  console.log('━'.repeat(60));
-  console.log(`Knowledge Base: ${kbPath}`);
-  console.log(`Database:       ${dbPath}`);
-  console.log('━'.repeat(60));
-  console.log();
+  if (!quiet) {
+    console.log('📚 Context Cache Indexer\n');
+    console.log('━'.repeat(60));
+    console.log(`Knowledge Base: ${kbPath}`);
+    console.log(`Database:       ${dbPath}`);
+    console.log('━'.repeat(60));
+    console.log();
+  }
 
   try {
     // Initialize database
     let db: Database.Database;
     if (!fs.existsSync(dbPath)) {
-      console.log('📦 Creating new database...');
+      if (!quiet) console.log('📦 Creating new database...');
       db = initDatabase(dbPath);
     } else {
-      console.log('📦 Using existing database...');
+      if (!quiet) console.log('📦 Using existing database...');
       db = new Database(dbPath);
     }
 
-    // Create embedder
-    console.log('🧠 Loading embedding model...');
+    // Create embedder (connects to Ollama)
+    if (!quiet) console.log('🧠 Loading embedding model from Ollama...');
     const embedder = await createEmbedder();
-    console.log('✓ Model loaded\n');
+    if (!quiet) console.log('✓ Connected to Ollama\n');
 
     // Index files
-    console.log('🔍 Indexing files...\n');
+    if (!quiet) console.log('🔍 Indexing files...\n');
     const startTime = Date.now();
 
-    const stats = await indexFiles(db, kbPath, embedder);
+    const stats = await indexFiles(db, kbPath, embedder, { quiet });
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
     // Print results
-    console.log('\n' + '━'.repeat(60));
-    console.log('📊 Indexing Complete\n');
-    console.log(`Files Processed:  ${stats.filesProcessed}`);
-    console.log(`  • Added:        ${stats.filesAdded}`);
-    console.log(`  • Updated:      ${stats.filesUpdated}`);
-    console.log(`  • Skipped:      ${stats.filesSkipped}`);
-    console.log(`  • Deleted:      ${stats.filesDeleted}`);
-    console.log(`Chunks Created:   ${stats.chunksCreated}`);
-    console.log(`Time:             ${duration}s`);
+    if (quiet) {
+      // Quiet mode: one line with summary
+      const hasChanges = stats.filesAdded + stats.filesUpdated + stats.filesDeleted > 0;
+      if (hasChanges) {
+        console.log(
+          `📝 KB: +${stats.filesAdded} ~${stats.filesUpdated} -${stats.filesDeleted} | ` +
+          `Time: ${duration}s`
+        );
+      } else {
+        console.log(`✓ No KB changes checked (${stats.filesProcessed} files, ${duration}s)`);
+      }
 
-    if (stats.errors.length > 0) {
-      console.log(`\n⚠️  Errors:        ${stats.errors.length}`);
-      stats.errors.forEach(error => console.log(`  • ${error}`));
+      if (stats.errors.length > 0) {
+        console.error(`⚠️  Errors: ${stats.errors.length}`);
+        stats.errors.forEach(error => console.error(`  • ${error}`));
+      }
+    } else {
+      // Verbose mode
+      console.log('\n' + '━'.repeat(60));
+      console.log('📊 Indexing Complete\n');
+      console.log(`Files Processed:  ${stats.filesProcessed}`);
+      console.log(`  • Added:        ${stats.filesAdded}`);
+      console.log(`  • Updated:      ${stats.filesUpdated}`);
+      console.log(`  • Skipped:      ${stats.filesSkipped}`);
+      console.log(`  • Deleted:      ${stats.filesDeleted}`);
+      console.log(`Chunks Created:   ${stats.chunksCreated}`);
+      console.log(`Time:             ${duration}s`);
+
+      if (stats.errors.length > 0) {
+        console.log(`\n⚠️  Errors:        ${stats.errors.length}`);
+        stats.errors.forEach(error => console.log(`  • ${error}`));
+      }
+
+      console.log('━'.repeat(60));
+      console.log();
     }
-
-    console.log('━'.repeat(60));
-    console.log();
 
     db.close();
     process.exit(0);
   } catch (error) {
     console.error('\n❌ Error:', (error as Error).message);
-    console.error('\nStack trace:', (error as Error).stack);
+    if (!quiet) {
+      console.error('\nStack trace:', (error as Error).stack);
+    }
     process.exit(1);
   }
 }

@@ -73,7 +73,6 @@ async function syncConversations(options: {
     const db = initDatabase(options.db);
 
     const embedder = await createEmbedder();
-    await embedder.init();
 
     const indexResult = await indexConversationFiles(
       db,
@@ -116,7 +115,6 @@ async function indexOpencodeConversations(options: {
     const db = initDatabase(options.db);
 
     const embedder = await createEmbedder();
-    await embedder.init();
 
     const result = await indexOpencodeDatabase(db, options.opencodeDb, { embedder });
 

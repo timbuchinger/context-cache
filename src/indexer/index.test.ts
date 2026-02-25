@@ -9,10 +9,8 @@ import * as os from 'os';
 
 // Mock embedder for testing
 class MockEmbedder implements Embedder {
-  async init() {}
-  
   async generateEmbedding(text: string): Promise<number[]> {
-    return new Array(384).fill(0).map((_, i) => Math.sin(i + text.length) * 0.5);
+    return new Array(768).fill(0).map((_, i) => Math.sin(i + text.length) * 0.5);
   }
 }
 
@@ -25,10 +23,10 @@ describe('Indexer', () => {
   beforeEach(() => {
     testDbPath = path.join(os.tmpdir(), `test-db-${Date.now()}.db`);
     testKbPath = path.join(os.tmpdir(), `test-kb-${Date.now()}`);
-    
+
     db = initDatabase(testDbPath);
     embedder = new MockEmbedder();
-    
+
     // Create test knowledge base directory
     fs.mkdirSync(testKbPath, { recursive: true });
   });
@@ -153,25 +151,25 @@ describe('Indexer', () => {
     // Create and index a file
     const testFile = path.join(testKbPath, 'to-delete.md');
     fs.writeFileSync(testFile, '# Will be deleted\n\nThis file will be removed.');
-    
+
     const stats1 = await indexFiles(db, testKbPath, embedder);
     expect(stats1.filesAdded).toBe(1);
-    
+
     // Verify file is in database
     const fileInDb = getFileByPath(db, 'to-delete.md');
     expect(fileInDb).toBeDefined();
     expect(fileInDb?.path).toBe('to-delete.md');
-    
+
     // Delete the file from disk
     fs.unlinkSync(testFile);
-    
+
     // Re-index
     const stats2 = await indexFiles(db, testKbPath, embedder);
-    
+
     // File should be removed from database
     const fileAfter = getFileByPath(db, 'to-delete.md');
     expect(fileAfter).toBeUndefined();
-    
+
     // Stats should show deletion
     expect(stats2.filesDeleted).toBe(1);
   });
@@ -180,20 +178,20 @@ describe('Indexer', () => {
     // Create two files
     const keepFile = path.join(testKbPath, 'keep.md');
     const deleteFile = path.join(testKbPath, 'delete.md');
-    
+
     fs.writeFileSync(keepFile, '# Keep this\n\nStay in database.');
     fs.writeFileSync(deleteFile, '# Delete this\n\nWill be removed.');
-    
+
     // Index both
     const stats1 = await indexFiles(db, testKbPath, embedder);
     expect(stats1.filesAdded).toBe(2);
-    
+
     // Delete one file
     fs.unlinkSync(deleteFile);
-    
+
     // Re-index
     const stats2 = await indexFiles(db, testKbPath, embedder);
-    
+
     // Verify correct file was removed
     expect(getFileByPath(db, 'delete.md')).toBeUndefined();
     expect(getFileByPath(db, 'keep.md')).toBeDefined();

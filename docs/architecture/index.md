@@ -11,6 +11,9 @@ Deep dive into Context Cache's architecture, design decisions, and internals.
 - [Data Flow](#data-flow)
 - [Design Decisions](#design-decisions)
 
+**Quick Links:**
+- **[Data Flow Diagrams](data-flows.md)** - Visual reference for indexing and search operations
+
 ## System Overview
 
 Context Cache is a hybrid search system that combines keyword-based (BM25) and semantic (vector) search to find relevant content in markdown notes.
@@ -264,62 +267,103 @@ Document appears at:
 
 ## Data Flow
 
-### Indexing Flow
+### Knowledge Base Indexing Flow
 
-```
-Markdown Files
-    │
-    ├─> File Processor
-    │   ├─> Find all .md files recursively
-    │   └─> Compute SHA256 hash
-    │
-    ├─> Change Detection
-    │   ├─> Query database for existing file
-    │   ├─> Compare hashes
-    │   └─> Skip if unchanged
-    │
-    ├─> Chunker
-    │   ├─> Split text into 500-word chunks
-    │   ├─> 50-word overlap between chunks
-    │   └─> Word-boundary aware
-    │
-    ├─> Embedder
-    │   ├─> Generate 384-dim vector per chunk
-    │   └─> Use Xenova/all-MiniLM-L6-v2
-    │
-    └─> Database Operations
-        ├─> Insert/update file record
-        ├─> Insert chunk records with embeddings
-        └─> Populate FTS5 table
+```mermaid
+graph TD
+    A["Start KB Index"] --> B["Find all .md files<br/>in knowledge base"]
+    B --> C["Load existing files<br/>from database"]
+    C --> D{"Deleted files?"}
+    D -->|Yes| E["Delete old chunks<br/>and file records"]
+    E --> F["Get next file"]
+    D -->|No| F
+    F --> G{"File changed?<br/>Compare SHA256"}
+    G -->|No| H["Skip file<br/>stats.filesSkipped++"]
+    G -->|Yes| I["Read file content"]
+    H --> J{"More files?"}
+    I --> K["Compute SHA256 hash"]
+    K --> L["Split into chunks<br/>500 words + 50 word overlap"]
+    L --> M["Generate embeddings<br/>384-dim per chunk<br/>Xenova/all-MiniLM-L6-v2"]
+    M --> N["Delete old chunks<br/>for this file"]
+    N --> O["Insert file record<br/>with hash"]
+    O --> P["Insert chunks with<br/>embeddings to DB"]
+    P --> Q["Populate FTS5<br/>for BM25 search"]
+    Q --> R["stats.filesAdded++<br/>or stats.filesUpdated++"]
+    R --> J
+    J -->|Yes| F
+    J -->|No| S["Return IndexStats"]
 ```
 
-### Search Flow
+### Conversation Indexing Flow
 
+```mermaid
+graph TD
+    A["Start Conversations Index"] --> B["Detect conversation<br/>file type"]
+    B --> C{"Copilot JSONL<br/>or OpenCode DB?"}
+    C -->|JSONL| D["Parse Copilot<br/>conversation"]
+    C -->|OpenCode DB| E["Parse OpenCode<br/>database session"]
+    D --> F["Compute SHA256 hash<br/>of file/session"]
+    E --> F
+    F --> G["Check database<br/>for existing conversation"]
+    G --> H{"Hash unchanged?"}
+    H -->|Yes| I["Skip conversation<br/>stats.conversationsSkipped++"]
+    H -->|No| J["Generate embeddings<br/>for exchanges<br/>if embedder provided"]
+    I --> K{"More sources?"}
+    J --> L["Delete all old exchanges<br/>for this conversation<br/>Remove orphans"]
+    L --> M["Insert/update conversation<br/>with new hash"]
+    M --> N["Insert all exchanges<br/>with embeddings"]
+    N --> O["stats.conversationsIndexed++"]
+    O --> K
+    K -->|Yes| B
+    K -->|No| P["Detect & remove<br/>deleted conversations"]
+    P --> Q["Return IndexResult"]
 ```
-User Query
-    │
-    ├─> Generate Query Embedding
-    │   └─> Use same model as indexing
-    │
-    ├─> BM25 Search
-    │   ├─> Query FTS5 table
-    │   ├─> Get top N results
-    │   └─> Rank by BM25 score
-    │
-    ├─> Vector Search
-    │   ├─> Load all embeddings
-    │   ├─> Compute cosine similarity
-    │   └─> Get top N results
-    │
-    ├─> RRF Fusion
-    │   ├─> Combine rankings
-    │   ├─> Calculate RRF scores
-    │   └─> Sort by score
-    │
-    └─> Format Results
-        ├─> Look up file paths
-        ├─> Include chunk index
-        └─> Return SearchResult[]
+
+### Knowledge Base Search Flow
+
+```mermaid
+graph TD
+    A["User Query"] --> B["Generate query embedding<br/>Xenova/all-MiniLM-L6-v2"]
+    B --> C["Parallel Search Process"]
+    C --> D["BM25 Search<br/>SQLite FTS5"]
+    C --> E["Vector Search<br/>Cosine Similarity"]
+    D --> D1["Query FTS5 index<br/>Get top N results"]
+    D1 --> D2["Rank by BM25 score<br/>Porter stemmer"]
+    E --> E1["Load all chunk embeddings<br/>from database"]
+    E1 --> E2["Compute cosine similarity<br/>query × all chunks"]
+    E2 --> E3["Get top N results<br/>by similarity score"]
+    D2 --> F["RRF Fusion<br/>Reciprocal Rank Fusion"]
+    E3 --> F
+    F --> F1["Combine rankings<br/>1/(k+rank) formula"]
+    F1 --> F2["Merge and sort<br/>by RRF scores"]
+    F2 --> F3["Select top N results"]
+    F3 --> G["Format Results"]
+    G --> G1["Look up file paths<br/>from database"]
+    G1 --> G2["Normalize scores 0-1<br/>based on result set"]
+    G2 --> G3["Return SearchResult[]<br/>with content & metadata"]
+```
+
+### Conversation Search Flow
+
+```mermaid
+graph TD
+    A["User Query"] --> B["Generate query embedding<br/>Xenova/all-MiniLM-L6-v2"]
+    B --> C["Parallel Search Process"]
+    C --> D["BM25 Search<br/>Query FTS5 for exchanges"]
+    C --> E["Vector Search<br/>Cosine Similarity"]
+    D --> D1["Search exchange text<br/>Porter stemmer tokenization"]
+    D1 --> D2["Rank by BM25 score"]
+    E --> E1["Load exchange embeddings<br/>from database"]
+    E1 --> E2["Compute cosine similarity<br/>query × all embeddings"]
+    E2 --> E3["Rank by similarity"]
+    D2 --> F["RRF Fusion<br/>Reciprocal Rank Fusion"]
+    E3 --> F
+    F --> F1["Combine rankings<br/>1/(k+rank) formula<br/>k=60"]
+    F1 --> F2["Merge results<br/>by RRF score"]
+    F2 --> G["Format Results"]
+    G --> G1["Look up conversation<br/>file paths"]
+    G1 --> G2["Include exchange context<br/>speaker, timestamp"]
+    G2 --> G3["Return conversation<br/>search results"]
 ```
 
 ## Design Decisions

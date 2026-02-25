@@ -24,8 +24,8 @@ describe('Configuration System', () => {
     expect(config.knowledgeBasePath).toBe(path.join(os.homedir(), 'git/knowledge-base'));
     expect(config.chunkSize).toBe(500);
     expect(config.chunkOverlap).toBe(50);
-    expect(config.embeddingModel).toBe('Xenova/all-MiniLM-L6-v2');
-    expect(config.embeddingDimension).toBe(384);
+    expect(config.ollamaUrl).toBe('http://localhost:11434');
+    expect(config.ollamaEmbedModel).toBe('nomic-embed-text');
     expect(config.searchLimit).toBe(10);
     expect(config.rrfK).toBe(60);
   });

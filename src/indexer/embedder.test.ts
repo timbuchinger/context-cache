@@ -1,64 +1,77 @@
-import { Embedder } from './embedder';
+import { createEmbedder, Embedder } from './embedder';
 
-// Simple deterministic embedder for testing
-class MockEmbedder implements Embedder {
-  async init() {
-    // No-op for mock
-  }
-
-  async generateEmbedding(text: string): Promise<number[]> {
-    // Generate deterministic embedding based on text
-    const embedding: number[] = [];
-    for (let i = 0; i < 384; i++) {
-      // Simple hash function for deterministic output
-      const charCode = text.charCodeAt(i % text.length) || 65;
-      embedding.push(Math.sin(charCode + i) * 0.5);
-    }
-    return embedding;
-  }
-}
+// Mock fetch globally
+global.fetch = jest.fn();
 
 describe('Embedder', () => {
-  let embedder: Embedder;
-
-  beforeAll(async () => {
-    embedder = new MockEmbedder();
-    await embedder.init();
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
   test('generates embedding vector from text', async () => {
+    (global.fetch as jest.Mock).mockImplementation((url: string) => {
+      if (url.includes('/api/tags')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ models: [] })
+        });
+      }
+      if (url.includes('/api/embed')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              embeddings: [new Array(768).fill(0.1)] // nomic-embed-text is 768 dims
+            })
+        });
+      }
+      return Promise.reject(new Error('Unknown URL'));
+    });
+
+    const embedder = await createEmbedder();
     const text = 'TypeScript is a programming language';
     const embedding = await embedder.generateEmbedding(text);
 
     expect(embedding).toBeDefined();
     expect(Array.isArray(embedding)).toBe(true);
-    expect(embedding.length).toBe(384); // all-MiniLM-L6-v2 dimension
+    expect(embedding.length).toBe(768); // nomic-embed-text dimension
     expect(typeof embedding[0]).toBe('number');
   });
 
   test('generates consistent embeddings for same text', async () => {
+    (global.fetch as jest.Mock).mockImplementation((url: string) => {
+      if (url.includes('/api/tags')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ models: [] })
+        });
+      }
+      if (url.includes('/api/embed')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              embeddings: [new Array(768).fill(0.5)]
+            })
+        });
+      }
+      return Promise.reject(new Error('Unknown URL'));
+    });
+
+    const embedder = await createEmbedder();
     const text = 'Hello world';
     const embedding1 = await embedder.generateEmbedding(text);
     const embedding2 = await embedder.generateEmbedding(text);
 
     expect(embedding1.length).toBe(embedding2.length);
-    // Should be identical for mock
     for (let i = 0; i < embedding1.length; i++) {
       expect(embedding1[i]).toBe(embedding2[i]);
     }
   });
 
-  test('generates different embeddings for different text', async () => {
-    const embedding1 = await embedder.generateEmbedding('TypeScript programming');
-    const embedding2 = await embedder.generateEmbedding('Cooking recipes');
+  test('throws error when Ollama is not available', async () => {
+    (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Connection refused'));
 
-    // Embeddings should be different
-    let differences = 0;
-    for (let i = 0; i < Math.min(embedding1.length, embedding2.length); i++) {
-      if (Math.abs(embedding1[i] - embedding2[i]) > 0.01) {
-        differences++;
-      }
-    }
-    expect(differences).toBeGreaterThan(10); // Many dimensions should differ
+    await expect(createEmbedder()).rejects.toThrow(/Cannot connect to Ollama/);
   });
 });

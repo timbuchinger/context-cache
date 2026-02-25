@@ -9,6 +9,7 @@
     "cc-conversations-index": "dist/cli/conversation-cli.js",
     "cc-conversations-search": "dist/cli/conversations-search-cli.js",
     "cc-stats": "dist/stats-cli.js",
+    "cc-reset": "dist/reset-cli.js",
     "cc-mcp": "dist/mcp-server.js"
   },
   "scripts": {

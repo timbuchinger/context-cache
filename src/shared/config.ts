@@ -12,9 +12,9 @@ export interface Config {
   chunkSize: number;
   chunkOverlap: number;
 
-  // Embedding
-  embeddingModel: string;
-  embeddingDimension: number;
+  // Embedding (Ollama-based)
+  ollamaUrl: string;
+  ollamaEmbedModel: string;
 
   // Search
   searchLimit: number;
@@ -26,8 +26,8 @@ const DEFAULT_CONFIG: Config = {
   knowledgeBasePath: path.join(os.homedir(), 'git/knowledge-base'),
   chunkSize: 500,
   chunkOverlap: 50,
-  embeddingModel: 'Xenova/all-MiniLM-L6-v2',
-  embeddingDimension: 384,
+  ollamaUrl: 'http://localhost:11434',
+  ollamaEmbedModel: 'nomic-embed-text',
   searchLimit: 10,
   rrfK: 60
 };
@@ -49,8 +49,11 @@ function getEnvOverrides(): Partial<Config> {
   if (process.env.CONTEXT_CACHE_CHUNK_OVERLAP) {
     overrides.chunkOverlap = parseInt(process.env.CONTEXT_CACHE_CHUNK_OVERLAP, 10);
   }
-  if (process.env.CONTEXT_CACHE_EMBEDDING_MODEL) {
-    overrides.embeddingModel = process.env.CONTEXT_CACHE_EMBEDDING_MODEL;
+  if (process.env.OLLAMA_API_URL) {
+    overrides.ollamaUrl = process.env.OLLAMA_API_URL;
+  }
+  if (process.env.OLLAMA_EMBED_MODEL) {
+    overrides.ollamaEmbedModel = process.env.OLLAMA_EMBED_MODEL;
   }
   if (process.env.CONTEXT_CACHE_SEARCH_LIMIT) {
     overrides.searchLimit = parseInt(process.env.CONTEXT_CACHE_SEARCH_LIMIT, 10);

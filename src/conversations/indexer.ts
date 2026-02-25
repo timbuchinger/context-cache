@@ -281,7 +281,6 @@ async function generateExchangeEmbeddings(
   exchanges: Exchange[],
   embedder: Embedder
 ): Promise<void> {
-  await embedder.init();
 
   for (const exchange of exchanges) {
     // Combine user message and assistant message for embedding

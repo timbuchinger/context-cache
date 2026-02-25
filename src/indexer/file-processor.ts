@@ -27,3 +27,21 @@ export function findMarkdownFiles(dirPath: string): string[] {
   traverse(dirPath);
   return results;
 }
+
+export function* streamMarkdownFiles(dirPath: string): Generator<string> {
+  function* traverse(currentPath: string): Generator<string> {
+    const entries = fs.readdirSync(currentPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(currentPath, entry.name);
+
+      if (entry.isDirectory()) {
+        yield* traverse(fullPath);
+      } else if (entry.isFile() && entry.name.endsWith('.md')) {
+        yield fullPath;
+      }
+    }
+  }
+
+  yield* traverse(dirPath);
+}

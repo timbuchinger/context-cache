@@ -1,30 +1,50 @@
+import { getConfig } from '../shared/config';
+
 export interface Embedder {
-  init(): Promise<void>;
   generateEmbedding(text: string): Promise<number[]>;
 }
 
 export async function createEmbedder(): Promise<Embedder> {
-  // Lazy load transformers to avoid Jest ESM issues
-  const { pipeline } = await import('@xenova/transformers');
-  
-  let embeddingPipeline: any = null;
+  const ollamaUrl = getConfig('ollamaUrl');
+  const ollamaModel = getConfig('ollamaEmbedModel');
+
+  // Verify Ollama is accessible
+  try {
+    const response = await fetch(`${ollamaUrl}/api/tags`);
+    if (!response.ok) {
+      throw new Error('Ollama server returned error');
+    }
+  } catch (error) {
+    throw new Error(
+      `Cannot connect to Ollama at ${ollamaUrl}. ` +
+      `Make sure Ollama is running: ollama serve\n` +
+      `Or set OLLAMA_API_URL environment variable.`
+    );
+  }
 
   const embedder: Embedder = {
-    async init() {
-      if (!embeddingPipeline) {
-        embeddingPipeline = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
-      }
-    },
+    async generateEmbedding(text: string): Promise<number[]> {
+      const response = await fetch(`${ollamaUrl}/api/embed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: ollamaModel,
+          input: text
+        })
+      });
 
-    async generateEmbedding(text: string) {
-      if (!embeddingPipeline) {
-        await embedder.init();
+      if (!response.ok) {
+        throw new Error(`Ollama embedding failed: ${response.statusText}`);
       }
 
-      const output = await embeddingPipeline(text, { pooling: 'mean', normalize: true });
-      const result = Array.from(output.data) as number[];
-      output.dispose();
-      return result;
+      const data = (await response.json()) as { embeddings: number[][] };
+      
+      // Return first embedding (single text input)
+      if (!data.embeddings || data.embeddings.length === 0) {
+        throw new Error('No embeddings returned from Ollama');
+      }
+
+      return data.embeddings[0];
     }
   };
 
