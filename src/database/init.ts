@@ -3,6 +3,13 @@ import Database from 'better-sqlite3';
 export function initDatabase(dbPath: string): Database.Database {
   const db = new Database(dbPath);
 
+  // Optimize for memory usage and performance
+  db.pragma('journal_mode=wal');
+  db.pragma('synchronous=normal');
+  db.pragma('cache_size=-64000'); // 64MB cache
+  db.pragma('temp_store=memory');
+  db.pragma('mmap_size=0'); // Disable memory mapping
+
   // Create files table
   db.exec(`
     CREATE TABLE IF NOT EXISTS files (

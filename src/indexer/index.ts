@@ -51,15 +51,8 @@ export async function indexFiles(
   const chunkOverlap = getConfig('chunkOverlap');
 
   // Track files we see during processing for deletion detection
-  if (!quiet) console.log('  Indexing files...\n');
+  if (!quiet) console.log('  Indexing files...');
   const processedRelativePaths = new Set<string>();
-
-  function logMemory(label: string) {
-    const mem = process.memoryUsage();
-    const heapUsedMB = (mem.heapUsed / 1024 / 1024).toFixed(1);
-    const heapTotalMB = (mem.heapTotal / 1024 / 1024).toFixed(1);
-    if (!quiet) console.log(`    [${label}] Heap: ${heapUsedMB}/${heapTotalMB} MB`);
-  }
 
   // Process ONE file at a time (streaming - no pre-scan)
   for (const filePath of streamMarkdownFiles(knowledgeBasePath)) {
@@ -71,11 +64,7 @@ export async function indexFiles(
 
       // Read file once, compute hash inline
       const content = fs.readFileSync(filePath, 'utf-8');
-      const fileSizeMB = (content.length / 1024 / 1024).toFixed(2);
-      if (!quiet) console.log(`  [${stats.filesProcessed}] ${relativePath} (${fileSizeMB} MB)`);
-      
       const fileHash = crypto.createHash('sha256').update(content).digest('hex');
-      logMemory('after hash');
       
       const existingFile = getFileByPath(db, relativePath);
 
@@ -87,7 +76,6 @@ export async function indexFiles(
 
         stats.filesUpdated++;
         deleteChunksByFileId(db, existingFile.id);
-        logMemory('after delete');
 
         await processFileContent(
           db,
@@ -117,13 +105,16 @@ export async function indexFiles(
         updateFileHash(db, fileId, fileHash);
       }
 
-      logMemory('after process');
+      // Manually trigger GC if available to prevent memory bloat
+      if (global.gc && stats.filesProcessed % 5 === 0) {
+        global.gc(false); // false = non-full GC
+      }
 
       // Show progress every 25 files
       if (!quiet && stats.filesProcessed % 25 === 0) {
         const memUsage = process.memoryUsage();
         const memMB = (memUsage.heapUsed / 1024 / 1024).toFixed(2);
-        console.log(`  ✓ Processed ${stats.filesProcessed} files (${memMB} MB)\n`);
+        console.log(`  Processed ${stats.filesProcessed} files (${memMB} MB)\n`);
       }
 
     } catch (error) {
@@ -160,7 +151,6 @@ async function processFileContent(
   stats: IndexStats
 ): Promise<void> {
   const chunks = chunkText(content, chunkSize, chunkOverlap);
-  console.log(`      Chunks: ${chunks.length}`);
 
   const ftsStmt = db.prepare('INSERT INTO chunks_fts (rowid, content) VALUES (?, ?)');
 

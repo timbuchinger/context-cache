@@ -1,5 +1,12 @@
 #!/usr/bin/env node
 
+// Force GC exposure for memory management
+if (global.gc === undefined) {
+  console.warn('⚠️  Warning: Run with --expose-gc flag to enable manual garbage collection');
+} else {
+  console.log('✓ Manual GC enabled');
+}
+
 import { indexFiles } from './indexer/index';
 import { createEmbedder } from './indexer/embedder';
 import { initDatabase } from './database/init';
@@ -76,7 +83,16 @@ async function main() {
     } else {
       if (!quiet) console.log('📦 Using existing database...');
       db = new Database(dbPath);
+      // Apply memory optimizations to existing database
+      db.pragma('journal_mode=wal');
+      db.pragma('synchronous=normal');
+      db.pragma('cache_size=-64000'); // 64MB cache
+      db.pragma('temp_store=memory');
+      db.pragma('mmap_size=0'); // Disable memory mapping
     }
+    
+    const memAfterDB = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1);
+    if (!quiet) console.log(`   Memory after DB open: ${memAfterDB} MB`);
 
     // Create embedder (connects to Ollama)
     if (!quiet) console.log('🧠 Loading embedding model from Ollama...');

@@ -7,7 +7,7 @@ export function* chunkTextGenerator(text: string, chunkSize: number, overlap: nu
   let start = 0;
 
   while (start < text.length) {
-    let end = start + chunkSize;
+    let end = Math.min(start + chunkSize, text.length);
 
     // If not the last chunk, try to break at word boundary
     if (end < text.length) {
@@ -19,11 +19,12 @@ export function* chunkTextGenerator(text: string, chunkSize: number, overlap: nu
 
     yield text.substring(start, end).trim();
 
-    // Move start forward, accounting for overlap
-    start = end - overlap;
-
-    // If we're at the end, break
-    if (end >= text.length) {
+    // Move start forward by at least (chunkSize - overlap), but at least 1 char
+    const nextStart = start + (chunkSize - overlap);
+    start = Math.max(nextStart, end);
+    
+    // Safety: prevent infinite loops by ensuring we advance
+    if (start >= text.length) {
       break;
     }
   }
