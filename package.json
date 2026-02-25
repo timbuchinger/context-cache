@@ -15,7 +15,7 @@
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",
-    "build": "tsc",
+    "build": "tsc && chmod +x dist/*-cli.js dist/mcp-server.js 2>/dev/null || true",
     "clean": "rm -rf dist"
   },
   "keywords": [
