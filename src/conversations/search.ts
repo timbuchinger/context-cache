@@ -30,7 +30,66 @@ export async function searchConversations(
   options: SearchOptions = {}
 ): Promise<ConversationSearchResult[]> {
   const { limit = 10, after, before } = options;
-  
+
+  // Check if exchanges_fts table exists (may not exist in older databases)
+  const ftsExists = db.prepare(
+    `SELECT name FROM sqlite_master WHERE type='table' AND name='exchanges_fts'`
+  ).get();
+
+  if (ftsExists) {
+    // Use FTS5 BM25 scoring for proper relevance ranking
+    let sql = `
+      SELECT
+        f.exchange_id,
+        f.conversation_id,
+        -bm25(exchanges_fts) AS score,
+        e.exchange_index,
+        e.user_message,
+        e.assistant_message,
+        e.timestamp AS exchange_timestamp,
+        c.session_id,
+        c.timestamp AS conversation_timestamp,
+        c.source,
+        c.archive_path
+      FROM exchanges_fts f
+      JOIN exchanges e ON e.id = f.exchange_id
+      JOIN conversations c ON c.id = f.conversation_id
+      WHERE exchanges_fts MATCH ?
+    `;
+
+    const params: any[] = [query];
+
+    if (after) {
+      sql += ' AND c.timestamp >= ?';
+      params.push(after);
+    }
+
+    if (before) {
+      sql += ' AND c.timestamp <= ?';
+      params.push(before);
+    }
+
+    sql += ' ORDER BY bm25(exchanges_fts) ASC LIMIT ?';
+    params.push(limit);
+
+    const stmt = db.prepare(sql);
+    const rows = stmt.all(...params) as any[];
+
+    return rows.map(row => ({
+      conversationId: row.conversation_id,
+      sessionId: row.session_id,
+      timestamp: row.conversation_timestamp,
+      source: row.source,
+      exchangeIndex: row.exchange_index,
+      exchangeId: row.exchange_id,
+      userMessage: row.user_message,
+      assistantMessage: row.assistant_message,
+      score: row.score as number,
+      archivePath: row.archive_path,
+    }));
+  }
+
+  // Fallback: LIKE-based search when FTS not available
   let sql = `
     SELECT 
       e.id as exchange_id,
@@ -50,25 +109,25 @@ export async function searchConversations(
       OR e.assistant_message LIKE ?
     )
   `;
-  
+
   const params: any[] = [`%${query}%`, `%${query}%`];
-  
+
   if (after) {
     sql += ' AND c.timestamp >= ?';
     params.push(after);
   }
-  
+
   if (before) {
     sql += ' AND c.timestamp <= ?';
     params.push(before);
   }
-  
+
   sql += ' ORDER BY c.timestamp DESC, e.exchange_index ASC LIMIT ?';
   params.push(limit);
-  
+
   const stmt = db.prepare(sql);
   const rows = stmt.all(...params) as any[];
-  
+
   return rows.map(row => ({
     conversationId: row.conversation_id,
     sessionId: row.session_id,
@@ -78,7 +137,7 @@ export async function searchConversations(
     exchangeId: row.exchange_id,
     userMessage: row.user_message,
     assistantMessage: row.assistant_message,
-    score: 1.0, // Text search doesn't have a score
+    score: 1.0,
     archivePath: row.archive_path,
   }));
 }

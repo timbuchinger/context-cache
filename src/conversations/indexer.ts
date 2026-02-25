@@ -194,6 +194,12 @@ export function insertExchange(
     exchange.parentId || null,
     null // embedding will be updated separately if needed
   );
+
+  // Populate FTS index for BM25 search
+  db.prepare(`
+    INSERT INTO exchanges_fts (exchange_id, conversation_id, user_message, assistant_message)
+    VALUES (?, ?, ?, ?)
+  `).run(exchange.id, exchange.conversationId, exchange.userMessage, exchange.assistantMessage);
 }
 
 export function getAllConversationsBySource(
@@ -316,6 +322,9 @@ function deleteExchangesForConversation(
   db: Database.Database,
   conversationId: string
 ): void {
+  // Remove from FTS index first
+  db.prepare(`DELETE FROM exchanges_fts WHERE conversation_id = ?`).run(conversationId);
+
   const stmt = db.prepare(`
     DELETE FROM exchanges WHERE conversation_id = ?
   `);

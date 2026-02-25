@@ -75,6 +75,16 @@ export function initDatabase(dbPath: string): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_conv_source ON conversations(source);
   `);
 
+  // Create FTS5 virtual table for BM25 search on exchanges
+  db.exec(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS exchanges_fts USING fts5(
+      exchange_id UNINDEXED,
+      conversation_id UNINDEXED,
+      user_message,
+      assistant_message
+    )
+  `);
+
   // Create indexes for exchanges
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_exchange_conv ON exchanges(conversation_id);
