@@ -8,7 +8,8 @@ export async function hybridSearch(
   db: Database.Database,
   query: string,
   queryEmbedding: number[],
-  limit: number
+  limit: number,
+  minScore: number = 0.01
 ): Promise<SearchResult[]> {
   // Perform BM25 search
   const bm25Results = bm25Search(db, query, limit * 2);
@@ -30,13 +31,10 @@ export async function hybridSearch(
   // Merge with RRF
   const merged = mergeWithRRF([bm25Ranked, vectorRanked], 60);
 
-  // Get the results we'll actually return (before normalization)
-  const topResults = merged.slice(0, limit);
-
-  // Normalize scores to 0-1 range based on the results we're returning
-  const maxScore = topResults.length > 0 ? topResults[0].score : 1;
-  const minScore = topResults.length > 0 ? topResults[topResults.length - 1].score : 0;
-  const scoreRange = maxScore - minScore;
+  // Filter by minimum score threshold and limit results
+  const topResults = merged
+    .filter(r => r.score >= minScore)
+    .slice(0, limit);
 
   // Get chunk details and format results
   const results: SearchResult[] = [];
@@ -56,16 +54,10 @@ export async function hybridSearch(
     } | undefined;
 
     if (chunk) {
-      // Normalize score to 0-1 range (best result = 1.0)
-      // If all results have same score, give them all 1.0
-      const normalizedScore = scoreRange > 0 
-        ? (ranked.score - minScore) / scoreRange 
-        : 1.0;
-      
       results.push({
         content: chunk.content,
         source_path: chunk.path,
-        score: normalizedScore,
+        score: ranked.score,
         chunk_index: chunk.chunk_index
       });
     }

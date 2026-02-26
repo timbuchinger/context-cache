@@ -7,7 +7,8 @@ import { SearchResult } from '../shared/types';
 export async function searchNotes(
   dbPath: string,
   query: string,
-  limit: number = 10
+  limit: number = 10,
+  minScore: number = 0.01
 ): Promise<SearchResult[]> {
   if (!fs.existsSync(dbPath)) {
     throw new Error(`Database not found at ${dbPath}`);
@@ -19,7 +20,7 @@ export async function searchNotes(
     const embedder = await createEmbedder();
     const queryEmbedding = await embedder.generateEmbedding(query);
 
-    const results = await hybridSearch(db, query, queryEmbedding, limit);
+    const results = await hybridSearch(db, query, queryEmbedding, limit, minScore);
 
     return results;
   } finally {

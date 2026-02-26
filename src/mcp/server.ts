@@ -43,7 +43,7 @@ class MCPServerImpl implements MCPServer {
       tools: [
         {
           name: 'kb_search',
-          description: 'Search through notes using hybrid search (BM25 + vector embeddings)',
+          description: 'Search through notes using hybrid search (BM25 + vector embeddings). Returns results ranked by relevance score (higher score = more relevant). Scores are typically 0.01-0.05, where items appearing in both keyword and semantic searches rank higher.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -54,6 +54,10 @@ class MCPServerImpl implements MCPServer {
               limit: {
                 type: 'number',
                 description: 'Maximum number of results to return (default: 10)',
+              },
+              minScore: {
+                type: 'number',
+                description: 'Minimum relevance score threshold (default: 0.01). Use lower values for broader results, higher values for stricter filtering.',
               },
             },
             required: ['query'],
@@ -96,14 +100,14 @@ class MCPServerImpl implements MCPServer {
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (request.params.name === 'kb_search') {
-        const { query, limit = 10 } = request.params.arguments as { query: string; limit?: number };
+        const { query, limit = 10, minScore = 0.01 } = request.params.arguments as { query: string; limit?: number; minScore?: number };
 
         const db = new Database(this.dbPath);
         try {
           const embedder = await createEmbedder();
           const queryEmbedding = await embedder.generateEmbedding(query);
 
-          const results = await hybridSearch(db, query, queryEmbedding, limit);
+          const results = await hybridSearch(db, query, queryEmbedding, limit, minScore);
 
           return {
             content: [

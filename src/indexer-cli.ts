@@ -19,18 +19,23 @@ function printUsage() {
 Usage: context-cache-index [options]
 
 Options:
-  --path <dir>       Path to knowledge base (default: from config)
-  --db <path>        Path to database (default: from config)
-  --quiet            Suppress verbose output, show only summary
-  --help, -h         Show this help message
+  --path <dir>         Path to knowledge base (default: from config)
+  --db <path>          Path to database (default: from config)
+  --ollama-url <url>   Ollama API endpoint (default: http://localhost:11434)
+  --ollama-model <m>   Ollama embedding model (default: nomic-embed-text)
+  --quiet              Suppress verbose output, show only summary
+  --help, -h           Show this help message
 
 Environment Variables:
   CONTEXT_CACHE_KNOWLEDGE_BASE_PATH   Knowledge base directory
   CONTEXT_CACHE_DATABASE_PATH         Database file path
+  OLLAMA_API_URL                      Ollama API endpoint
+  OLLAMA_EMBED_MODEL                  Ollama embedding model
 
 Examples:
   context-cache-index
   context-cache-index --path ~/my-notes
+  context-cache-index --ollama-url http://ollama:11434
   context-cache-index --quiet --db ~/custom/db.sqlite --path ~/notes
 `);
 }
@@ -56,6 +61,16 @@ async function main() {
   const dbIndex = args.findIndex(arg => arg === '--db');
   if (dbIndex !== -1 && args[dbIndex + 1]) {
     dbPath = args[dbIndex + 1];
+  }
+
+  const ollamaUrlIndex = args.findIndex(arg => arg === '--ollama-url');
+  if (ollamaUrlIndex !== -1 && args[ollamaUrlIndex + 1]) {
+    process.env.OLLAMA_API_URL = args[ollamaUrlIndex + 1];
+  }
+
+  const ollamaModelIndex = args.findIndex(arg => arg === '--ollama-model');
+  if (ollamaModelIndex !== -1 && args[ollamaModelIndex + 1]) {
+    process.env.OLLAMA_EMBED_MODEL = args[ollamaModelIndex + 1];
   }
 
   // Validate paths
@@ -90,7 +105,7 @@ async function main() {
       db.pragma('temp_store=memory');
       db.pragma('mmap_size=0'); // Disable memory mapping
     }
-    
+
     const memAfterDB = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1);
     if (!quiet) console.log(`   Memory after DB open: ${memAfterDB} MB`);
 

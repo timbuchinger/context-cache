@@ -1,4 +1,18 @@
 services:
+  ollama:
+    image: ollama/ollama:0.17.0
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    # Pull the nomic-embed-text model on startup if not already present
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull nomic-embed-text && wait"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   kb-indexer:
     build: .
     image: context-cache-kb-indexer
@@ -7,16 +21,19 @@ services:
       # the container regardless of the host user's home directory.
       - CONTEXT_CACHE_KB_PATH=/data/knowledge-base
       - CONTEXT_CACHE_DB_PATH=/data/knowledge-base/db.sqlite
+      # Point to the ollama sidecar container
+      - OLLAMA_API_URL=http://ollama:11434
+      - OLLAMA_EMBED_MODEL=nomic-embed-text
     volumes:
       # Mount the host knowledge-base directory into the container.
       # The DB file (db.sqlite) will be written here too, keeping it
       # alongside the source files just as it is on the host.
       - ${HOME}/git/knowledge-base:/data/knowledge-base
-      # Persist the Xenova/HuggingFace model cache so the embedding model
-      # is only downloaded once, not on every container restart.
-      - model-cache:/root/.cache
+    depends_on:
+      ollama:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
-  model-cache:
+  ollama-data:
     driver: local

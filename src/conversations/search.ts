@@ -221,33 +221,33 @@ export function formatConversationResults(
   if (format === 'json') {
     return JSON.stringify({ results }, null, 2);
   }
-  
+
   if (results.length === 0) {
     return 'No conversations found matching your query.';
   }
-  
+
   let output = `# Conversation Search Results (${results.length})\n\n`;
-  
+
   for (const result of results) {
     const date = new Date(result.timestamp).toLocaleString();
-    
+
     output += `## ${result.source} - ${date}\n`;
     output += `**Session:** ${result.sessionId.substring(0, 8)}...\n`;
     output += `**Exchange:** ${result.exchangeIndex}\n`;
     output += `**Path:** ${result.archivePath}\n\n`;
-    
+
     output += `**User:**\n`;
     output += result.userMessage.substring(0, 200);
     if (result.userMessage.length > 200) output += '...';
     output += '\n\n';
-    
+
     output += `**Assistant:**\n`;
     output += result.assistantMessage.substring(0, 300);
     if (result.assistantMessage.length > 300) output += '...';
     output += '\n\n';
-    
+
     output += '---\n\n';
   }
-  
+
   return output;
 }

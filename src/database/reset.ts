@@ -13,7 +13,7 @@ export function resetDatabase(db: Database.Database): void {
 
   // Reset auto-increment counters
   db.prepare('DELETE FROM sqlite_sequence WHERE name IN (?, ?)').run('files', 'chunks');
-  
+
   // Optimize database (reclaim space)
   db.prepare('VACUUM').run();
 }

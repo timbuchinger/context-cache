@@ -92,22 +92,32 @@ describe('Hybrid Search', () => {
     expect(results.length).toBeLessThanOrEqual(2);
   });
 
-  test('normalizes scores to 0-1 range', async () => {
+  test('returns results with raw RRF scores', async () => {
     const queryEmbedding = new Array(384).fill(0).map((_, i) => i < 10 ? 1.0 : 0.0);
     
-    const results = await hybridSearch(db, 'TypeScript programming', queryEmbedding, 10);
+    const results = await hybridSearch(db, 'TypeScript', queryEmbedding, 10, 0);
 
-    // Best result should have score close to 1.0
-    expect(results[0].score).toBeGreaterThan(0.8);
-    expect(results[0].score).toBeLessThanOrEqual(1.0);
+    expect(results.length).toBeGreaterThan(0);
+    // Raw RRF scores should be small positive numbers (reciprocal rank fusion formula)
+    expect(results[0].score).toBeLessThan(0.1);
+    expect(results[0].score).toBeGreaterThan(0);
+  });
+
+  test('filters results below minimum score threshold', async () => {
+    const queryEmbedding = new Array(384).fill(0).map((_, i) => i < 10 ? 1.0 : 0.0);
     
-    // All scores should be in 0-1 range
-    results.forEach(result => {
-      expect(result.score).toBeGreaterThanOrEqual(0);
-      expect(result.score).toBeLessThanOrEqual(1.0);
-    });
+    // With high threshold, should get fewer results
+    const resultsWithHighThreshold = await hybridSearch(db, 'programming', queryEmbedding, 10, 0.05);
+    const resultsWithLowThreshold = await hybridSearch(db, 'programming', queryEmbedding, 10, 0);
+
+    expect(resultsWithLowThreshold.length).toBeGreaterThanOrEqual(resultsWithHighThreshold.length);
+  });
+
+  test('returns results ordered by descending score', async () => {
+    const queryEmbedding = new Array(384).fill(0).map((_, i) => i < 10 ? 1.0 : 0.0);
     
-    // Scores should be in descending order
+    const results = await hybridSearch(db, 'TypeScript programming', queryEmbedding, 10, 0);
+
     for (let i = 1; i < results.length; i++) {
       expect(results[i].score).toBeLessThanOrEqual(results[i - 1].score);
     }
