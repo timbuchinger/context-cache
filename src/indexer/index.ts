@@ -7,6 +7,7 @@ import {
   getAllFiles,
   insertFile,
   updateFileHash,
+  insertChunk,
   insertChunkWithEmbedding,
   deleteChunksByFileId,
   deleteFile
@@ -24,6 +25,7 @@ export interface IndexStats {
   filesDeleted: number;
   chunksCreated: number;
   errors: string[];
+  warnings?: string[];
 }
 
 export interface IndexOptions {
@@ -65,7 +67,7 @@ export async function indexFiles(
       // Read file once, compute hash inline
       const content = fs.readFileSync(filePath, 'utf-8');
       const fileHash = crypto.createHash('sha256').update(content).digest('hex');
-      
+
       const existingFile = getFileByPath(db, relativePath);
 
       if (existingFile) {
@@ -75,34 +77,19 @@ export async function indexFiles(
         }
 
         stats.filesUpdated++;
-        deleteChunksByFileId(db, existingFile.id);
+        console.log(`  📝 Updating ${relativePath}...`);
 
-        await processFileContent(
-          db,
-          existingFile.id,
-          content,
-          chunkSize,
-          chunkOverlap,
-          embedder,
-          stats
-        );
+        // Generate embeddings first (async), then commit everything atomically
+        const chunkData = await generateEmbeddings(content, chunkSize, chunkOverlap, embedder, stats);
+        commitFileUpdate(db, existingFile.id, fileHash, chunkData, stats);
 
-        updateFileHash(db, existingFile.id, fileHash);
       } else {
         stats.filesAdded++;
-        const fileId = insertFile(db, relativePath, '');
+        console.log(`  ✨ Adding ${relativePath}...`);
 
-        await processFileContent(
-          db,
-          fileId,
-          content,
-          chunkSize,
-          chunkOverlap,
-          embedder,
-          stats
-        );
-
-        updateFileHash(db, fileId, fileHash);
+        // Generate embeddings first (async), then commit everything atomically
+        const chunkData = await generateEmbeddings(content, chunkSize, chunkOverlap, embedder, stats);
+        commitFileInsert(db, relativePath, fileHash, chunkData, stats);
       }
 
       // Manually trigger GC if available to prevent memory bloat
@@ -141,39 +128,80 @@ export async function indexFiles(
   return stats;
 }
 
-async function processFileContent(
-  db: Database.Database,
-  fileId: number,
+// Generate embeddings for all chunks of a file (async, no DB writes)
+async function generateEmbeddings(
   content: string,
   chunkSize: number,
   chunkOverlap: number,
   embedder: Embedder,
   stats: IndexStats
-): Promise<void> {
+): Promise<Array<{ content: string; embedding: Buffer | null }>> {
   const chunks = chunkText(content, chunkSize, chunkOverlap);
+  const chunkData: Array<{ content: string; embedding: Buffer | null }> = [];
 
-  const ftsStmt = db.prepare('INSERT INTO chunks_fts (rowid, content) VALUES (?, ?)');
-
-  for (let i = 0; i < chunks.length; i++) {
-    const chunkContent = chunks[i];
-    
+  for (const chunkContent of chunks) {
+    let embeddingBuffer: Buffer | null = null;
     try {
       const embedding = await embedder.generateEmbedding(chunkContent);
-      const embeddingBuffer = Buffer.from(new Float32Array(embedding).buffer);
+      embeddingBuffer = Buffer.from(new Float32Array(embedding).buffer);
+    } catch (error) {
+      stats.warnings = stats.warnings || [];
+      stats.warnings.push(`Failed to embed chunk ${chunkData.length} (size: ${chunkContent.length}): ${error}`);
+      console.warn(`⚠️  Warning: Failed to embed chunk ${chunkData.length} (content ${chunkContent.length} chars): ${error}`);
+    }
+    chunkData.push({ content: chunkContent, embedding: embeddingBuffer });
+  }
 
-      const chunkId = insertChunkWithEmbedding(
-        db,
-        fileId,
-        i,
-        chunkContent,
-        chunkContent,
-        embeddingBuffer
-      );
+  return chunkData;
+}
 
+// Insert a brand-new file record + all its chunks in one atomic transaction
+function commitFileInsert(
+  db: Database.Database,
+  relativePath: string,
+  fileHash: string,
+  chunkData: Array<{ content: string; embedding: Buffer | null }>,
+  stats: IndexStats
+): void {
+  db.exec('BEGIN TRANSACTION');
+  try {
+    const fileId = insertFile(db, relativePath, fileHash);
+    const ftsStmt = db.prepare('INSERT INTO chunks_fts (rowid, content) VALUES (?, ?)');
+    for (let i = 0; i < chunkData.length; i++) {
+      const { content: chunkContent, embedding: embeddingBuffer } = chunkData[i];
+      const chunkId = insertChunk(db, fileId, i, chunkContent, chunkContent, embeddingBuffer);
       ftsStmt.run(chunkId, chunkContent);
       stats.chunksCreated++;
-    } catch (error) {
-      throw new Error(`Failed to embed chunk ${i}: ${error}`);
     }
+    db.exec('COMMIT');
+  } catch (error) {
+    try { db.exec('ROLLBACK'); } catch (_) { /* ignore rollback errors */ }
+    throw error;
+  }
+}
+
+// Delete old chunks + insert new chunks + update hash in one atomic transaction
+function commitFileUpdate(
+  db: Database.Database,
+  fileId: number,
+  fileHash: string,
+  chunkData: Array<{ content: string; embedding: Buffer | null }>,
+  stats: IndexStats
+): void {
+  db.exec('BEGIN TRANSACTION');
+  try {
+    deleteChunksByFileId(db, fileId);
+    const ftsStmt = db.prepare('INSERT INTO chunks_fts (rowid, content) VALUES (?, ?)');
+    for (let i = 0; i < chunkData.length; i++) {
+      const { content: chunkContent, embedding: embeddingBuffer } = chunkData[i];
+      const chunkId = insertChunk(db, fileId, i, chunkContent, chunkContent, embeddingBuffer);
+      ftsStmt.run(chunkId, chunkContent);
+      stats.chunksCreated++;
+    }
+    updateFileHash(db, fileId, fileHash);
+    db.exec('COMMIT');
+  } catch (error) {
+    try { db.exec('ROLLBACK'); } catch (_) { /* ignore rollback errors */ }
+    throw error;
   }
 }

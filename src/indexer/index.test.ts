@@ -1,6 +1,6 @@
 import { indexFiles, IndexStats } from './index';
 import { initDatabase } from '../database/init';
-import { getFileByPath } from '../database/operations';
+import { getFileByPath, getChunksByFileId } from '../database/operations';
 import { Embedder } from './embedder';
 import Database from 'better-sqlite3';
 import * as fs from 'fs';
@@ -11,6 +11,15 @@ import * as os from 'os';
 class MockEmbedder implements Embedder {
   async generateEmbedding(text: string): Promise<number[]> {
     return new Array(768).fill(0).map((_, i) => Math.sin(i + text.length) * 0.5);
+  }
+}
+
+// Mock embedder that fails on specific chunks for testing error handling
+class FailingEmbedder implements Embedder {
+  constructor(private failOnChunkIndex: number = 1) {}
+  async generateEmbedding(text: string): Promise<number[]> {
+    // Simulate embedding failure (e.g., "Bad Request" from Ollama)
+    throw new Error('Ollama embedding failed: Bad Request');
   }
 }
 
@@ -198,4 +207,71 @@ describe('Indexer', () => {
     expect(stats2.filesDeleted).toBe(1);
     expect(stats2.filesSkipped).toBe(1); // keep.md unchanged
   });
-});
+
+  test('continues indexing when embedding fails', async () => {
+    // Create a file with multiple chunks
+    const testFile = path.join(testKbPath, 'test.md');
+    const longContent = 'Test chunk. '.repeat(150); // Force multiple chunks
+    fs.writeFileSync(testFile, longContent);
+
+    // Use failing embedder - all embeddings will fail
+    const failingEmbedder = new FailingEmbedder();
+    const stats = await indexFiles(db, testKbPath, failingEmbedder);
+
+    // File should still be indexed despite embedding failures
+    expect(stats.filesProcessed).toBe(1);
+    expect(stats.filesAdded).toBe(1);
+    expect(stats.chunksCreated).toBeGreaterThan(0);
+
+    // Verify file is in database
+    const file = getFileByPath(db, 'test.md');
+    expect(file).toBeDefined();
+
+    // Verify chunks are stored (even though embeddings failed)
+    const chunks = getChunksByFileId(db, file!.id);
+    expect(chunks.length).toBe(stats.chunksCreated);
+
+    // Verify chunks have NULL embeddings (not stored)
+    chunks.forEach(chunk => {
+      expect(chunk.embedding).toBeNull();
+    });
+
+    // Verify warnings were recorded
+    expect(stats.warnings).toBeDefined();
+    expect(stats.warnings!.length).toBeGreaterThan(0);
+  });
+
+  test('chunks without embeddings remain searchable via BM25', async () => {
+    // Create a file with searchable content
+    const testFile = path.join(testKbPath, 'searchable.md');
+    fs.writeFileSync(testFile, 'TypeScript is a programming language');
+
+    // Use failing embedder
+    const failingEmbedder = new FailingEmbedder();
+    await indexFiles(db, testKbPath, failingEmbedder);
+
+    // Verify FTS5 contains the content (BM25 search works)
+    const ftsResult = db.prepare(
+      "SELECT COUNT(*) as count FROM chunks_fts WHERE content MATCH 'TypeScript'"
+    ).get() as { count: number };
+
+    expect(ftsResult.count).toBeGreaterThan(0);
+  });
+
+  test('file with partial embedding failures is still indexed', async () => {
+    // Create a file with multiple chunks
+    const testFile = path.join(testKbPath, 'partial.md');
+    const content = 'Chunk 1. '.repeat(50) + '\n\n' + 'Chunk 2. '.repeat(50);
+    fs.writeFileSync(testFile, content);
+
+    // Use failing embedder - simulates consistent Ollama failure
+    const failingEmbedder = new FailingEmbedder();
+    const stats = await indexFiles(db, testKbPath, failingEmbedder);
+
+    // File should be indexed despite all embedding failures
+    expect(stats.filesProcessed).toBe(1);
+    expect(stats.filesAdded).toBe(1);
+    expect(stats.filesSkipped).toBe(0);
+    expect(stats.errors.length).toBe(0); // No fatal errors, just warnings
+    expect(stats.warnings?.length).toBeGreaterThan(0);
+  });});

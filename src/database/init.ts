@@ -3,12 +3,15 @@ import Database from 'better-sqlite3';
 export function initDatabase(dbPath: string): Database.Database {
   const db = new Database(dbPath);
 
-  // Optimize for memory usage and performance
-  db.pragma('journal_mode=wal');
-  db.pragma('synchronous=normal');
-  db.pragma('cache_size=-64000'); // 64MB cache
+  // Enable foreign key constraint enforcement
+  db.pragma('foreign_keys=on');
+
+  // Conservative settings for reliability (works on virtual/network filesystems)
+  db.pragma('journal_mode=delete'); // Avoid WAL - WAL has known issues on virtual filesystems
+  db.pragma('synchronous=full');    // Full fsync on commit - slower but prevents corruption
+  db.pragma('cache_size=-32000');   // 32MB cache
   db.pragma('temp_store=memory');
-  db.pragma('mmap_size=0'); // Disable memory mapping
+  db.pragma('mmap_size=0');         // Disable mmap - unsafe on virtual filesystems
 
   // Create files table
   db.exec(`

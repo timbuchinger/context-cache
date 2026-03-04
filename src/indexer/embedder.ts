@@ -47,7 +47,7 @@ export async function createEmbedder(): Promise<Embedder> {
           input: truncated
         });
         const payloadSizeKb = (payload.length / 1024).toFixed(2);
-        
+
         response = await fetch(`${ollamaUrl}/api/embed`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -69,17 +69,17 @@ export async function createEmbedder(): Promise<Embedder> {
         }
 
         const data = (await response.json()) as { embeddings: number[][] };
-        
+
         // Return first embedding (single text input)
         if (!data.embeddings || data.embeddings.length === 0) {
           throw new Error('No embeddings returned from Ollama');
         }
 
         const result = data.embeddings[0];
-        
+
         // Explicitly help GC by nullifying large objects
         data.embeddings = [];
-        
+
         return result;
       } finally {
         // Ensure response body is fully consumed

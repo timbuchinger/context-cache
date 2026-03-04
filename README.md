@@ -41,6 +41,18 @@ cc-conversations-search "async patterns"
 cc-stats
 ```
 
+## Configuration
+
+By default, Context Cache looks for the database at `~/git/knowledge-base/db.sqlite`. If your database is in a different location, set the environment variable:
+
+```bash
+export CONTEXT_CACHE_DB_PATH=~/git/knowledge-base/index.sqlite
+```
+
+Add this to your shell rc file (`~/.bashrc`, `~/.zshrc`, etc.) to make it permanent, then reload your shell.
+
+For comprehensive configuration options, see the [Configuration Guide](docs/configuration.md).
+
 ## Status
 
 **91 Tests Passing** | **100% Test Coverage** | **Production Ready** ✅

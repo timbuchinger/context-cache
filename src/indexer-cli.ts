@@ -90,21 +90,10 @@ async function main() {
   }
 
   try {
-    // Initialize database
-    let db: Database.Database;
-    if (!fs.existsSync(dbPath)) {
-      if (!quiet) console.log('📦 Creating new database...');
-      db = initDatabase(dbPath);
-    } else {
-      if (!quiet) console.log('📦 Using existing database...');
-      db = new Database(dbPath);
-      // Apply memory optimizations to existing database
-      db.pragma('journal_mode=wal');
-      db.pragma('synchronous=normal');
-      db.pragma('cache_size=-64000'); // 64MB cache
-      db.pragma('temp_store=memory');
-      db.pragma('mmap_size=0'); // Disable memory mapping
-    }
+    // Initialize database (always use initDatabase to ensure consistent pragmas)
+    const isNew = !fs.existsSync(dbPath);
+    if (!quiet) console.log(isNew ? '📦 Creating new database...' : '📦 Using existing database...');
+    const db = initDatabase(dbPath);
 
     const memAfterDB = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1);
     if (!quiet) console.log(`   Memory after DB open: ${memAfterDB} MB`);
