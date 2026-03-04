@@ -12,7 +12,16 @@ import {
   indexConversationFiles,
   getConversation,
   getExchanges,
+  repairFtsIndex,
 } from '../indexer';
+import { Embedder } from '../../indexer/embedder';
+
+// Mock embedder that fails for testing error handling
+class FailingEmbedder implements Embedder {
+  async generateEmbedding(text: string): Promise<number[]> {
+    throw new Error('Ollama embedding failed: Bad Request');
+  }
+}
 
 describe('Conversation Indexer', () => {
   let db: Database.Database;
@@ -410,5 +419,142 @@ describe('Conversation Indexer', () => {
 
     const conversation = getConversation(db, sessionId);
     expect(conversation!.exchangeCount).toBe(1);
+  });
+
+  test('continues indexing exchanges when embedding fails', async () => {
+    const sessionId = 'test-session-embedfail';
+    const testFile = path.join(testDir, 'embedfail.jsonl');
+    const content = [
+      JSON.stringify({
+        type: 'session.start',
+        data: { sessionId, version: 1, producer: 'copilot-agent' },
+        id: 'e1',
+        timestamp: '2026-02-18T10:00:00Z',
+        parentId: null,
+      }),
+      JSON.stringify({
+        type: 'user.message',
+        data: { content: 'First question' },
+        id: 'e2',
+        timestamp: '2026-02-18T10:00:05Z',
+        parentId: 'e1',
+      }),
+      JSON.stringify({
+        type: 'assistant.message',
+        data: { content: 'First answer' },
+        id: 'e3',
+        timestamp: '2026-02-18T10:00:10Z',
+        parentId: 'e2',
+      }),
+      JSON.stringify({
+        type: 'user.message',
+        data: { content: 'Second question' },
+        id: 'e4',
+        timestamp: '2026-02-18T10:00:15Z',
+        parentId: 'e3',
+      }),
+      JSON.stringify({
+        type: 'assistant.message',
+        data: { content: 'Second answer' },
+        id: 'e5',
+        timestamp: '2026-02-18T10:00:20Z',
+        parentId: 'e4',
+      }),
+    ].join('\n');
+
+    fs.writeFileSync(testFile, content);
+
+    // Index with failing embedder - should still index exchanges
+    const failingEmbedder = new FailingEmbedder();
+    await indexConversationFile(db, testFile, { embedder: failingEmbedder });
+
+    // Verify conversation is indexed
+    const conversation = getConversation(db, sessionId);
+    expect(conversation).toBeDefined();
+    expect(conversation!.exchangeCount).toBe(2); // 2 user-assistant pairs
+
+    // Verify exchanges are stored even though embeddings failed
+    const exchanges = getExchanges(db, sessionId);
+    expect(exchanges.length).toBe(2);
+
+    // Verify exchanges have NULL embeddings
+    const rows = db.prepare('SELECT embedding FROM exchanges WHERE conversation_id = ?').all(sessionId) as { embedding: Buffer | null }[];
+    expect(rows.length).toBe(2);
+    rows.forEach(row => {
+      expect(row.embedding).toBeNull();
+    });
+  });
+
+  test('conversation searches work with NULL embeddings via BM25', async () => {
+    const sessionId = 'test-session-bm25-only';
+    const testFile = path.join(testDir, 'bm25.jsonl');
+    const content = [
+      JSON.stringify({
+        type: 'session.start',
+        data: { sessionId, version: 1, producer: 'copilot-agent' },
+        id: 'e1',
+        timestamp: '2026-02-18T10:00:00Z',
+        parentId: null,
+      }),
+      JSON.stringify({
+        type: 'user.message',
+        data: { content: 'How do I use TypeScript?' },
+        id: 'e2',
+        timestamp: '2026-02-18T10:00:05Z',
+        parentId: 'e1',
+      }),
+      JSON.stringify({
+        type: 'assistant.message',
+        data: { content: 'TypeScript is a typed language' },
+        id: 'e3',
+        timestamp: '2026-02-18T10:00:10Z',
+        parentId: 'e2',
+      }),
+    ].join('\n');
+
+    fs.writeFileSync(testFile, content);
+
+    // Index with failing embedder
+    const failingEmbedder = new FailingEmbedder();
+    await indexConversationFile(db, testFile, { embedder: failingEmbedder });
+
+    // Verify FTS5 contains the exchange content
+    const ftsResult = db.prepare(
+      "SELECT COUNT(*) as count FROM exchanges_fts WHERE user_message MATCH 'TypeScript'"
+    ).get() as { count: number };
+
+    expect(ftsResult.count).toBeGreaterThan(0);
+  });
+
+  test('repairFtsIndex backfills FTS from exchanges when FTS is empty', async () => {
+    // 1. Index a conversation normally so exchanges exist
+    const testFile = createTestConversation('repair-test.jsonl', 'repair-session-1');
+    await indexConversationFile(db, testFile);
+
+    // 2. Verify exchanges were indexed
+    const exchangeCount = (db.prepare('SELECT COUNT(*) as cnt FROM exchanges').get() as { cnt: number }).cnt;
+    expect(exchangeCount).toBeGreaterThan(0);
+
+    // 3. Manually empty the FTS table to simulate the inconsistency
+    db.prepare('DELETE FROM exchanges_fts').run();
+    const ftsCountBefore = (db.prepare('SELECT COUNT(*) as cnt FROM exchanges_fts').get() as { cnt: number }).cnt;
+    expect(ftsCountBefore).toBe(0);
+
+    // 4. Repair should backfill FTS from existing exchanges
+    const repairedCount = repairFtsIndex(db);
+    expect(repairedCount).toBe(exchangeCount);
+
+    // 5. BM25 search should now work
+    const ftsCountAfter = (db.prepare('SELECT COUNT(*) as cnt FROM exchanges_fts').get() as { cnt: number }).cnt;
+    expect(ftsCountAfter).toBe(exchangeCount);
+  });
+
+  test('repairFtsIndex returns 0 when FTS is already consistent', async () => {
+    const testFile = createTestConversation('no-repair-needed.jsonl', 'repair-session-2');
+    await indexConversationFile(db, testFile);
+
+    // FTS should already be populated - repairFtsIndex should do nothing
+    const repairedCount = repairFtsIndex(db);
+    expect(repairedCount).toBe(0);
   });
 });

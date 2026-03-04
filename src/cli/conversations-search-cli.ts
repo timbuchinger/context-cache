@@ -2,8 +2,7 @@
 
 import { searchConversations } from '../conversations/search';
 import { initDatabase } from '../database/init';
-import * as path from 'path';
-import * as os from 'os';
+import { getConfig } from '../shared/config';
 
 function printUsage() {
   console.log(`
@@ -46,7 +45,7 @@ async function main() {
     }
   }
 
-  const dbPath = path.join(os.homedir(), '.context-cache', 'context-cache.db');
+  const dbPath = getConfig('databasePath') as string;
 
   try {
     console.log(`🔍 Searching conversations for: "${query}"\n`);

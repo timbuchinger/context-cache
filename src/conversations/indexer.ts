@@ -95,6 +95,14 @@ export async function indexConversationFiles(
     errors: [],
   };
 
+  // Auto-repair FTS index if it has fallen out of sync with exchanges.
+  // This handles the case where conversations were indexed before the FTS
+  // insert was in place, or after a manual wipe of exchanges_fts.
+  const repairedFts = repairFtsIndex(db);
+  if (repairedFts > 0) {
+    console.log(`🔧 Repaired FTS index: backfilled ${repairedFts} missing entries`);
+  }
+
   // Detect and remove Copilot conversations whose archive files no longer exist.
   // filePaths is always the complete set of current archive files, so any
   // copilot conversation in the DB whose archivePath is absent from this set
@@ -285,8 +293,19 @@ async function generateExchangeEmbeddings(
   for (const exchange of exchanges) {
     // Combine user message and assistant message for embedding
     const text = formatExchangeForEmbedding(exchange);
-    const embedding = await embedder.generateEmbedding(text);
-    (exchange as any)._embedding = embedding;
+
+    try {
+      const embedding = await embedder.generateEmbedding(text);
+      (exchange as any)._embedding = embedding;
+    } catch (error) {
+      // Log warning but continue - exchange will be indexed without embedding
+      const contentSize = text.length;
+      console.warn(
+        `⚠️  Warning: Failed to embed exchange (size: ${contentSize}): ${error}`
+      );
+      // Set embedding to undefined so it won't be stored
+      (exchange as any)._embedding = undefined;
+    }
   }
 }
 
@@ -304,8 +323,13 @@ function formatExchangeForEmbedding(exchange: Exchange): string {
 function insertExchangeEmbedding(
   db: Database.Database,
   exchangeId: string,
-  embedding: number[]
+  embedding: number[] | null | undefined
 ): void {
+  if (!embedding) {
+    // Skip if embedding is null/undefined - nothing to store
+    return;
+  }
+
   const embeddingBuffer = Buffer.from(new Float32Array(embedding).buffer);
 
   const stmt = db.prepare(`
@@ -329,4 +353,38 @@ function deleteExchangesForConversation(
   `);
 
   stmt.run(conversationId);
+}
+
+/**
+ * Backfill the FTS index for any exchanges that are missing from it.
+ * This repairs the common case where exchanges were indexed before the FTS
+ * insert was added, or after a manual DELETE from exchanges_fts.
+ *
+ * Returns the number of rows inserted.
+ */
+export function repairFtsIndex(db: Database.Database): number {
+  // Find exchanges that have no corresponding FTS row
+  const orphans = db.prepare(`
+    SELECT e.id, e.conversation_id, e.user_message, e.assistant_message
+    FROM exchanges e
+    WHERE NOT EXISTS (
+      SELECT 1 FROM exchanges_fts f WHERE f.exchange_id = e.id
+    )
+  `).all() as { id: string; conversation_id: string; user_message: string; assistant_message: string }[];
+
+  if (orphans.length === 0) return 0;
+
+  const insert = db.prepare(`
+    INSERT INTO exchanges_fts (exchange_id, conversation_id, user_message, assistant_message)
+    VALUES (?, ?, ?, ?)
+  `);
+
+  const backfill = db.transaction(() => {
+    for (const row of orphans) {
+      insert.run(row.id, row.conversation_id, row.user_message, row.assistant_message);
+    }
+  });
+
+  backfill();
+  return orphans.length;
 }
