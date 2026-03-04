@@ -4,6 +4,14 @@ export interface Embedder {
   generateEmbedding(text: string): Promise<number[]>;
 }
 
+/**
+ * Maximum character length sent to the embedding model.
+ * nomic-embed-text has an 8192-token context window; 8000 chars is a
+ * conservative safe limit that avoids HTTP 400 "input length exceeds
+ * context length" errors on long exchanges.
+ */
+export const MAX_EMBEDDING_CHARS = 8000;
+
 export async function createEmbedder(): Promise<Embedder> {
   const ollamaUrl = getConfig('ollamaUrl');
   const ollamaModel = getConfig('ollamaEmbedModel');
@@ -26,19 +34,38 @@ export async function createEmbedder(): Promise<Embedder> {
 
   const embedder: Embedder = {
     async generateEmbedding(text: string): Promise<number[]> {
+      // Truncate to avoid exceeding the model's context window
+      const truncated = text.length > MAX_EMBEDDING_CHARS
+        ? text.slice(0, MAX_EMBEDDING_CHARS)
+        : text;
+
       let response;
       try {
+        // Log request details for debugging
+        const payload = JSON.stringify({
+          model: ollamaModel,
+          input: truncated
+        });
+        const payloadSizeKb = (payload.length / 1024).toFixed(2);
+        
         response = await fetch(`${ollamaUrl}/api/embed`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: ollamaModel,
-            input: text
-          })
+          body: payload
         });
 
         if (!response.ok) {
-          throw new Error(`Ollama embedding failed: ${response.statusText}`);
+          const errorBody = await response.text();
+          const errorMsg = `Ollama embedding failed: ${response.statusText} (HTTP ${response.status})`;
+          console.error(
+            `❌ Embedding error: ${errorMsg}\n` +
+            `   Model: ${ollamaModel}\n` +
+            `   Payload size: ${payloadSizeKb} KB\n` +
+            `   Text length: ${truncated.length} chars\n` +
+            `   URL: ${ollamaUrl}/api/embed\n` +
+            `   Error body: ${errorBody.substring(0, 200)}`
+          );
+          throw new Error(errorMsg);
         }
 
         const data = (await response.json()) as { embeddings: number[][] };
