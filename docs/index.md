@@ -16,11 +16,9 @@ Welcome to the Context Cache documentation. This directory contains comprehensiv
 ### Architecture & Design
 - **[Architecture Guide](architecture/index.md)** - System design, components, and data flow
 - **[Data Flow Diagrams](architecture/data-flows.md)** - Visual mermaid diagrams for indexing and search
-- **[Technical Notes](technical-notes.md)** - Implementation details and design decisions
 
 ### Troubleshooting
 - **[Troubleshooting Guide](troubleshooting.md)** - Solutions to common issues
-- **[Technical Updates](technical-updates.md)** - Implementation fixes and improvements
 
 ## 🎯 Quick Links by Use Case
 
@@ -45,7 +43,7 @@ Welcome to the Context Cache documentation. This directory contains comprehensiv
 → See [Troubleshooting Guide](troubleshooting.md)
 
 **...learn about recent implementations**
-→ Read [Technical Notes](technical-notes.md) and [Technical Updates](technical-updates.md)
+→ Check [Architecture Guide](architecture/index.md) for system details
 
 ## 📖 Skills Documentation
 

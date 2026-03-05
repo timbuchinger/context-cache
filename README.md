@@ -68,8 +68,6 @@ Complete documentation is available in the [`docs/`](docs/) directory. Start wit
 - **[Configuration](docs/configuration.md)** - Environment variables and customization
 - **[Architecture](docs/architecture/)** - System design and components
 - **[API Reference](docs/api.md)** - Key functions and interfaces
-- **[Technical Notes](docs/technical-notes.md)** - Implementation highlights and design decisions
-- **[Technical Updates](docs/technical-updates.md)** - Recent improvements and fixes
 - **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
 
 ## CLI Tools
