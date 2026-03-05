@@ -9,25 +9,29 @@ import { parseCopilotConversation } from './parsers/copilot';
 import { parseOpencodeConversation } from './parsers/opencode';
 import { Embedder } from '../indexer/embedder';
 import { computeConversationFileHash } from './hashing';
+import { summarizeConversation } from './summarizer';
+import { getConfig } from '../shared/config';
 
 export interface IndexResult {
   conversationsIndexed: number;
   exchangesIndexed: number;
   conversationsSkipped: number;
   conversationsDeleted: number;
+  summariesGenerated: number;
   errors: string[];
 }
 
 export interface IndexOptions {
   embedder?: Embedder;
   sessionId?: string; // For OpenCode database
+  skipSummaries?: boolean;
 }
 
 export async function indexConversationFile(
   db: Database.Database,
   filePath: string,
   options?: IndexOptions
-): Promise<{ indexed: boolean; exchangeCount: number }> {
+): Promise<{ indexed: boolean; exchangeCount: number; summaryGenerated: boolean }> {
   // Detect conversation source by file extension
   const ext = path.extname(filePath).toLowerCase();
   const isOpenCodeDb = ext === '.db' || filePath.includes('opencode.db');
@@ -51,8 +55,22 @@ export async function indexConversationFile(
   // Check if conversation already exists with same hash
   const existing = getConversation(db, parsed.conversation.id);
   if (existing && existing.hash === fileHash) {
-    // Conversation hasn't changed, skip it
-    return { indexed: false, exchangeCount: parsed.exchanges.length };
+    // Conversation unchanged — backfill summary if it was never generated
+    if (!options?.skipSummaries && !existing.summary) {
+      const storedExchanges = getExchanges(db, parsed.conversation.id);
+      if (storedExchanges.length > 0) {
+        const summary = await summarizeConversation(storedExchanges, {
+          apiUrl: getConfig('summarizeApiUrl'),
+          apiKey: getConfig('summarizeApiKey'),
+          model: getConfig('summarizeModel'),
+        });
+        if (summary) {
+          updateConversationSummary(db, parsed.conversation.id, summary);
+          return { indexed: false, exchangeCount: parsed.exchanges.length, summaryGenerated: true };
+        }
+      }
+    }
+    return { indexed: false, exchangeCount: parsed.exchanges.length, summaryGenerated: false };
   }
 
   // Generate embeddings if embedder provided
@@ -79,8 +97,23 @@ export async function indexConversationFile(
   });
 
   tx();
-  return { indexed: true, exchangeCount: parsed.exchanges.length };
+
+  // Generate and store summary unless explicitly skipped
+  let summary = '';
+  if (!options?.skipSummaries) {
+    summary = await summarizeConversation(parsed.exchanges, {
+      apiUrl: getConfig('summarizeApiUrl'),
+      apiKey: getConfig('summarizeApiKey'),
+      model: getConfig('summarizeModel'),
+    });
+    if (summary) {
+      updateConversationSummary(db, parsed.conversation.id, summary);
+    }
+  }
+
+  return { indexed: true, exchangeCount: parsed.exchanges.length, summaryGenerated: !!summary };
 }
+
 
 export async function indexConversationFiles(
   db: Database.Database,
@@ -92,6 +125,7 @@ export async function indexConversationFiles(
     exchangesIndexed: 0,
     conversationsSkipped: 0,
     conversationsDeleted: 0,
+    summariesGenerated: 0,
     errors: [],
   };
 
@@ -131,12 +165,26 @@ export async function indexConversationFiles(
       } else {
         result.conversationsSkipped++;
       }
+      if (indexResult.summaryGenerated) {
+        result.summariesGenerated++;
+      }
     } catch (err) {
       result.errors.push(`${filePath}: ${err}`);
     }
   }
 
   return result;
+}
+
+export function updateConversationSummary(
+  db: Database.Database,
+  conversationId: string,
+  summary: string
+): void {
+  db.prepare(`UPDATE conversations SET summary = ? WHERE id = ?`).run(
+    summary,
+    conversationId
+  );
 }
 
 export function insertConversation(
@@ -241,7 +289,7 @@ export function deleteConversation(
 export function getConversation(
   db: Database.Database,
   id: string
-): (Conversation & { hash: string }) | undefined {
+): (Conversation & { hash: string; summary: string }) | undefined {
   const stmt = db.prepare(`
     SELECT * FROM conversations WHERE id = ?
   `);
@@ -260,6 +308,7 @@ export function getConversation(
     lastIndexed: row.last_indexed,
     copilotVersion: row.copilot_version,
     cwd: row.cwd,
+    summary: row.summary ?? '',
   };
 }
 

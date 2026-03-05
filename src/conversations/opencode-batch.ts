@@ -34,6 +34,7 @@ export async function indexOpencodeDatabase(
       exchangesIndexed: 0,
       conversationsSkipped: 0,
       conversationsDeleted: 0,
+      summariesGenerated: 0,
       errors: [],
     };
 
@@ -70,6 +71,9 @@ export async function indexOpencodeDatabase(
         } else {
           result.conversationsSkipped++;
           console.log(`○ Skipped ${session.title} (unchanged)`);
+        }
+        if (indexResult.summaryGenerated) {
+          result.summariesGenerated++;
         }
       } catch (err) {
         result.errors.push(`${session.id} (${session.title}): ${err}`);

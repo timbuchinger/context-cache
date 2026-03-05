@@ -1,11 +1,11 @@
 services:
   ollama:
-    image: ollama/ollama:0.17.0
+    image: ollama/ollama:0.17.6
     volumes:
       - ollama-data:/root/.ollama
     restart: unless-stopped
     # Pull the nomic-embed-text model on startup if not already present
-    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull nomic-embed-text && wait"]
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull nomic-embed-text && ollama pull qwen3.5:4b && wait"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
       interval: 10s

@@ -115,5 +115,10 @@ export function initDatabase(dbPath: string): Database.Database {
     db.exec(`UPDATE conversations SET hash = '' WHERE hash IS NULL`);
   }
 
+  const hasSummaryColumn = conversationColumns.some(col => col.name === 'summary');
+  if (!hasSummaryColumn) {
+    db.exec(`ALTER TABLE conversations ADD COLUMN summary TEXT`);
+  }
+
   return db;
 }

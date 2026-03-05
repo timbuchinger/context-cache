@@ -1,5 +1,13 @@
 import * as os from 'os';
 import * as path from 'path';
+import { config as loadDotenv } from 'dotenv';
+
+// Load .env from the repo root (or wherever the process is run from).
+// Skipped in the test environment (Jest sets NODE_ENV=test) so that test
+// isolation is not broken by credentials in a developer's .env file.
+if (process.env.NODE_ENV !== 'test') {
+  loadDotenv();
+}
 
 export interface Config {
   // Database
@@ -19,6 +27,11 @@ export interface Config {
   // Search
   searchLimit: number;
   rrfK: number;
+
+  // Summarization (OpenAI-compatible)
+  summarizeApiUrl: string;
+  summarizeApiKey: string;
+  summarizeModel: string;
 }
 
 const DEFAULT_CONFIG: Config = {
@@ -29,7 +42,10 @@ const DEFAULT_CONFIG: Config = {
   ollamaUrl: 'http://localhost:11434',
   ollamaEmbedModel: 'nomic-embed-text',
   searchLimit: 10,
-  rrfK: 60
+  rrfK: 60,
+  summarizeApiUrl: '',
+  summarizeApiKey: '',
+  summarizeModel: '',
 };
 
 let cachedConfig: Config | null = null;
@@ -60,6 +76,15 @@ function getEnvOverrides(): Partial<Config> {
   }
   if (process.env.CONTEXT_CACHE_RRF_K) {
     overrides.rrfK = parseInt(process.env.CONTEXT_CACHE_RRF_K, 10);
+  }
+  if (process.env.SUMMARIZE_API_URL) {
+    overrides.summarizeApiUrl = process.env.SUMMARIZE_API_URL;
+  }
+  if (process.env.SUMMARIZE_API_KEY) {
+    overrides.summarizeApiKey = process.env.SUMMARIZE_API_KEY;
+  }
+  if (process.env.SUMMARIZE_MODEL) {
+    overrides.summarizeModel = process.env.SUMMARIZE_MODEL;
   }
 
   return overrides;

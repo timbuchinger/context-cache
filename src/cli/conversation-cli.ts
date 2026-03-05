@@ -28,6 +28,7 @@ Options:
   --copilot-only          Index only Copilot conversations
   --opencode-only [path]  Index only OpenCode conversations
                           (default: ~/.local/share/opencode/opencode.db)
+  --no-summaries          Skip AI summarization (use when SUMMARIZE_MODEL is not configured)
 
 By default, indexes ALL conversation sources (Copilot + OpenCode).
 
@@ -43,6 +44,7 @@ async function syncConversations(options: {
   source: string;
   archive: string;
   db: string;
+  skipSummaries?: boolean;
 }): Promise<void> {
   try {
     console.log('📥 Extracting conversations...');
@@ -56,7 +58,9 @@ async function syncConversations(options: {
 
     console.log(`✅ Found ${extractResult.filesFound} conversation files`);
     console.log(`   Copied: ${extractResult.filesCopied}`);
-    console.log(`   Skipped: ${extractResult.filesSkipped}`);
+    if (extractResult.filesCopied === 0) {
+      console.log(`   Already archived: ${extractResult.filesSkipped}`);
+    }
 
     // Index all archived files (new or previously skipped)
     const allArchivedFiles = fs
@@ -77,7 +81,7 @@ async function syncConversations(options: {
     const indexResult = await indexConversationFiles(
       db,
       allArchivedFiles,
-      { embedder }
+      { embedder, skipSummaries: options.skipSummaries }
     );
 
     db.close();
@@ -85,6 +89,9 @@ async function syncConversations(options: {
     console.log(`✅ Indexed ${indexResult.conversationsIndexed} conversations`);
     console.log(`   Exchanges: ${indexResult.exchangesIndexed}`);
     console.log(`   Skipped (unchanged): ${indexResult.conversationsSkipped}`);
+    if (indexResult.summariesGenerated > 0) {
+      console.log(`   Summaries generated: ${indexResult.summariesGenerated}`);
+    }
 
     if (indexResult.errors.length > 0) {
       console.log(`\n⚠️  Errors: ${indexResult.errors.length}`);
@@ -101,6 +108,7 @@ async function syncConversations(options: {
 async function indexOpencodeConversations(options: {
   opencodeDb: string;
   db: string;
+  skipSummaries?: boolean;
 }): Promise<void> {
   try {
     if (!fs.existsSync(options.opencodeDb)) {
@@ -116,13 +124,16 @@ async function indexOpencodeConversations(options: {
 
     const embedder = await createEmbedder();
 
-    const result = await indexOpencodeDatabase(db, options.opencodeDb, { embedder });
+    const result = await indexOpencodeDatabase(db, options.opencodeDb, { embedder, skipSummaries: options.skipSummaries });
 
     db.close();
 
     console.log(`\n✅ Indexed ${result.conversationsIndexed} conversations`);
     console.log(`   Exchanges: ${result.exchangesIndexed}`);
     console.log(`   Skipped (unchanged): ${result.conversationsSkipped}`);
+    if (result.summariesGenerated > 0) {
+      console.log(`   Summaries generated: ${result.summariesGenerated}`);
+    }
 
     if (result.errors.length > 0) {
       console.log(`\n⚠️  Errors: ${result.errors.length}`);
@@ -150,6 +161,7 @@ async function main() {
   const copilotOnly = args.includes('--copilot-only');
   const opencodeOnlyIdx = args.indexOf('--opencode-only');
   const opencodeOnly = opencodeOnlyIdx !== -1;
+  const skipSummaries = args.includes('--no-summaries');
 
   // Determine what to index
   const indexCopilot = !opencodeOnly; // Index unless opencode-only flag
@@ -166,6 +178,7 @@ async function main() {
         source: sourcePath,
         archive: archivePath,
         db: dbPath,
+        skipSummaries,
       });
     }
 
@@ -187,6 +200,7 @@ async function main() {
         await indexOpencodeConversations({
           opencodeDb: opencodeDbPath,
           db: dbPath,
+          skipSummaries,
         });
       } else if (opencodeOnly) {
         // Only error if user explicitly requested opencode
