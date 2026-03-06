@@ -15,10 +15,10 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 # Copy entrypoint script
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+COPY docker-entrypoint.sh /usr/local/bin/indexer-entrypoint.sh
+RUN chmod +x /usr/local/bin/indexer-entrypoint.sh
 
 # Create data mount point
 RUN mkdir -p /data/knowledge-base
 
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+# CMD ["node", "/app/dist/indexer-cli.js"]

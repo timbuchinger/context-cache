@@ -1,9 +1,13 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import type { Request, Response } from 'express';
 import Database from 'better-sqlite3';
 import { initDatabase } from '../database/init';
 import { hybridSearch } from '../search/hybrid';
@@ -338,19 +342,12 @@ export function createMCPServer(dbPath: string): MCPServer {
   return new MCPServerImpl(dbPath);
 }
 
-export async function runMCPServer(dbPath: string): Promise<void> {
-  const server = new Server(
-    {
-      name: 'context-cache',
-      version: '1.0.0',
-    },
-    {
-      capabilities: {
-        tools: {},
-      },
-    }
-  );
+export interface ServerOptions {
+  mode?: 'stdio' | 'http';
+  port?: number;
+}
 
+function setupHandlers(server: Server, dbPath: string): void {
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
       {
@@ -533,7 +530,92 @@ export async function runMCPServer(dbPath: string): Promise<void> {
 
     throw new Error(`Unknown tool: ${request.params.name}`);
   });
+}
 
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+export async function runMCPServer(dbPath: string, options?: ServerOptions): Promise<void> {
+  const { mode = 'stdio', port = 3000 } = options || {};
+
+  const server = new Server(
+    {
+      name: 'context-cache',
+      version: '1.0.0',
+    },
+    {
+      capabilities: {
+        tools: {},
+      },
+    }
+  );
+
+  setupHandlers(server, dbPath);
+
+  if (mode === 'http') {
+    const app = createMcpExpressApp({ host: '0.0.0.0' });
+
+    // Streamable HTTP transport (MCP spec 2024-11-05+)
+    const streamableTransport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => require('crypto').randomUUID(),
+    });
+
+    // Pass req.body explicitly — Express json() middleware already consumed the
+    // stream, so the transport must receive the pre-parsed body.
+    app.post('/mcp', (req: Request, res: Response) => {
+      streamableTransport.handleRequest(req, res, req.body);
+    });
+
+    app.get('/mcp', (req: Request, res: Response) => {
+      streamableTransport.handleRequest(req, res);
+    });
+
+    app.delete('/mcp', (req: Request, res: Response) => {
+      streamableTransport.handleRequest(req, res);
+    });
+
+    await server.connect(streamableTransport);
+
+    // Legacy SSE transport (widely supported by AI agents)
+    // GET /sse  — client opens SSE stream
+    // POST /messages — client sends JSON-RPC messages
+    const sseTransports: Record<string, SSEServerTransport> = {};
+
+    app.get('/sse', async (req: Request, res: Response) => {
+      const transport = new SSEServerTransport('/messages', res);
+      sseTransports[transport.sessionId] = transport;
+
+      transport.onclose = () => {
+        delete sseTransports[transport.sessionId];
+      };
+
+      // Create a fresh Server instance per SSE session
+      const sseServer = new Server(
+        { name: 'context-cache', version: '1.0.0' },
+        { capabilities: { tools: {} } }
+      );
+      setupHandlers(sseServer, dbPath);
+      await sseServer.connect(transport);
+    });
+
+    app.post('/messages', async (req: Request, res: Response) => {
+      const sessionId = req.query['sessionId'] as string;
+      const transport = sseTransports[sessionId];
+      if (!transport) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+      await transport.handlePostMessage(req, res, req.body);
+    });
+
+    return new Promise<void>((resolve, reject) => {
+      const httpServer = app.listen(port, '0.0.0.0', () => {
+        console.error(`MCP Server listening on http://0.0.0.0:${port}`);
+        console.error(`  Streamable HTTP: POST/GET http://0.0.0.0:${port}/mcp`);
+        console.error(`  Legacy SSE:      GET  http://0.0.0.0:${port}/sse`);
+      });
+
+      httpServer.on('error', reject);
+    });
+  } else {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+  }
 }

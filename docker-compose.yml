@@ -5,9 +5,9 @@ services:
       - ollama-data:/root/.ollama
     restart: unless-stopped
     # Pull the nomic-embed-text model on startup if not already present
-    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull nomic-embed-text && ollama pull qwen3.5:4b && wait"]
+    entrypoint: ["/bin/sh", "-c", "ollama serve & until ollama list > /dev/null 2>&1; do sleep 1; done; ollama pull nomic-embed-text; wait"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      test: ["CMD-SHELL", "ollama list || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -29,9 +29,28 @@ services:
       # The DB file (db.sqlite) will be written here too, keeping it
       # alongside the source files just as it is on the host.
       - ${HOME}/git/knowledge-base:/data/knowledge-base
+    entrypoint: ["/usr/local/bin/indexer-entrypoint.sh"]
     depends_on:
       ollama:
         condition: service_healthy
+    restart: unless-stopped
+
+  mcp-server:
+    build: .
+    image: context-cache-mcp-server
+    ports:
+      - "3001:3001"
+    environment:
+      - CONTEXT_CACHE_KB_PATH=/data/knowledge-base
+      - CONTEXT_CACHE_DB_PATH=/data/knowledge-base/db.sqlite
+      - OLLAMA_API_URL=http://ollama:11434
+      - OLLAMA_EMBED_MODEL=nomic-embed-text
+    volumes:
+      - ${HOME}/git/knowledge-base:/data/knowledge-base
+    depends_on:
+      ollama:
+        condition: service_healthy
+    command: ["node", "/app/dist/mcp-server.js", "--http", "--port", "3001"]
     restart: unless-stopped
 
 volumes:
