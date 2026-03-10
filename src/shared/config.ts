@@ -6,7 +6,7 @@ import { config as loadDotenv } from 'dotenv';
 // Skipped in the test environment (Jest sets NODE_ENV=test) so that test
 // isolation is not broken by credentials in a developer's .env file.
 if (process.env.NODE_ENV !== 'test') {
-  loadDotenv();
+  loadDotenv({ quiet: true });
 }
 
 export interface Config {
