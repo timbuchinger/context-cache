@@ -25,6 +25,8 @@ export interface SummarizeOptions {
   baseDelayMs?: number;
   /** Maximum delay cap in ms. Default: 60000. */
   maxDelayMs?: number;
+  /** Max tokens for conversation content to stay under API limits. Default: 4500. */
+  maxConversationTokens?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,6 +56,17 @@ export function renderPrompt(
 export function extractSummary(text: string): string {
   const m = text.match(/<summary>([\s\S]*?)<\/summary>/);
   return m ? m[1].trim() : '';
+}
+
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+export function truncateToTokenLimit(text: string, maxTokens: number): string {
+  if (!text) return text;
+  const maxChars = maxTokens * 4;
+  if (text.length <= maxChars) return text;
+  return text.slice(0, maxChars) + ' [truncated]';
 }
 
 export function formatConversationText(exchanges: Exchange[]): string {
@@ -192,10 +205,16 @@ export async function summarizeConversation(
   if (exchanges.length === 0) return '';
 
   try {
+    const maxConvTokens = options.maxConversationTokens ?? 4500;
+
     if (exchanges.length <= 15) {
       const template = loadPrompt('summarize-direct.md', options.promptsDir);
+      const conversationText = truncateToTokenLimit(
+        formatConversationText(exchanges),
+        maxConvTokens
+      );
       const prompt = renderPrompt(template, {
-        conversation: formatConversationText(exchanges),
+        conversation: conversationText,
       });
       const response = await callChatCompletion(prompt, options);
       return extractSummary(response) || response.trim();
@@ -207,8 +226,12 @@ export async function summarizeConversation(
     const chunkSummaries: string[] = [];
 
     for (const chunk of chunks) {
+      const chunkText = truncateToTokenLimit(
+        formatConversationText(chunk),
+        maxConvTokens
+      );
       const prompt = renderPrompt(chunkTemplate, {
-        chunk: formatConversationText(chunk),
+        chunk: chunkText,
       });
       try {
         const response = await callChatCompletion(prompt, options);

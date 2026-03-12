@@ -7,6 +7,8 @@ import {
   summarizeConversation,
   parseRetryAfter,
   calcBackoffMs,
+  estimateTokens,
+  truncateToTokenLimit,
   SummarizeOptions,
 } from '../summarizer';
 import { Exchange } from '../types';
@@ -384,6 +386,81 @@ describe('summarizeConversation', () => {
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining('Summarization failed')
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// estimateTokens
+// ---------------------------------------------------------------------------
+
+describe('estimateTokens', () => {
+  test('returns ceil(length/4)', () => {
+    expect(estimateTokens('abcd')).toBe(1);       // 4 chars → 1 token
+    expect(estimateTokens('abcde')).toBe(2);      // 5 chars → 2 tokens
+    expect(estimateTokens('')).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// truncateToTokenLimit
+// ---------------------------------------------------------------------------
+
+describe('truncateToTokenLimit', () => {
+  test('returns text unchanged when within limit', () => {
+    const text = 'short text';
+    expect(truncateToTokenLimit(text, 100)).toBe(text);
+  });
+
+  test('truncates to maxTokens*4 chars and appends [truncated]', () => {
+    const text = 'a'.repeat(100);
+    const result = truncateToTokenLimit(text, 10); // 10 tokens = 40 chars
+    expect(result).toHaveLength(40 + ' [truncated]'.length);
+    expect(result.endsWith(' [truncated]')).toBe(true);
+  });
+
+  test('handles empty string', () => {
+    expect(truncateToTokenLimit('', 10)).toBe('');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// summarizeConversation – token truncation
+// ---------------------------------------------------------------------------
+
+describe('summarizeConversation token truncation', () => {
+  beforeEach(() => {
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test('truncates conversation text when maxConversationTokens is set', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: '<summary>Truncated ok.</summary>' } }],
+      }),
+    });
+
+    // Create a very long exchange that would exceed a tiny token budget
+    const bigExchange = makeExchange(0, {
+      userMessage: 'x'.repeat(2000),
+      assistantMessage: 'y'.repeat(2000),
+    });
+
+    const result = await summarizeConversation(
+      [bigExchange],
+      { ...mockOptions, maxConversationTokens: 50 }
+    );
+
+    expect(result).toBe('Truncated ok.');
+    const [_url, opts] = (global.fetch as jest.Mock).mock.calls[0];
+    const body = JSON.parse(opts.body);
+    const prompt: string = body.messages[0].content;
+    // The conversation portion should be truncated, keeping prompt small
+    expect(estimateTokens(prompt)).toBeLessThan(300); // well under 6000
   });
 });
 

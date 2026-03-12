@@ -6,9 +6,23 @@ export interface BM25Result {
   score: number;
 }
 
+/**
+ * Sanitize a user query for safe use in SQLite FTS5 MATCH expressions.
+ * FTS5 treats hyphens as NOT operators (e.g. "test-driven" → "test NOT driven"),
+ * which causes SQLite to interpret the right-hand side as a column name and fail.
+ * Replacing FTS5 operator characters with spaces preserves the search terms while
+ * preventing invalid syntax.
+ */
+export function sanitizeFts5Query(query: string): string {
+  return query
+    .replace(/[-+*"^():]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function bm25Search(db: Database.Database, query: string, limit: number): BM25Result[] {
   const stmt = db.prepare(`
-    SELECT 
+    SELECT
       chunks_fts.rowid as chunk_id,
       chunks.content,
       bm25(chunks_fts) as score
@@ -19,5 +33,5 @@ export function bm25Search(db: Database.Database, query: string, limit: number):
     LIMIT ?
   `);
 
-  return stmt.all(query, limit) as BM25Result[];
+  return stmt.all(sanitizeFts5Query(query), limit) as BM25Result[];
 }

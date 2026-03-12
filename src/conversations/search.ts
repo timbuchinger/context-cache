@@ -4,6 +4,7 @@
 
 import Database from 'better-sqlite3';
 import { mergeWithRRF, RankedResult } from '../search/rrf';
+import { sanitizeFts5Query } from '../search/bm25';
 
 export interface ConversationSearchResult {
   conversationId: string;
@@ -42,7 +43,7 @@ function bm25SearchExchanges(
     JOIN conversations c ON c.id = f.conversation_id
     WHERE exchanges_fts MATCH ?
   `;
-  const params: any[] = [query];
+  const params: any[] = [sanitizeFts5Query(query)];
   if (after) { sql += ' AND c.timestamp >= ?'; params.push(after); }
   if (before) { sql += ' AND c.timestamp <= ?'; params.push(before); }
   sql += ' ORDER BY bm25(exchanges_fts) ASC LIMIT ?';

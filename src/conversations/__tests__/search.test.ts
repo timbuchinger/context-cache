@@ -221,4 +221,26 @@ describe('Conversation Search', () => {
       expect(results[0].score).toBeLessThanOrEqual(1.0);
     });
   });
+
+  test('handles queries with hyphens without throwing', async () => {
+    const conv = makeConversation('conv-1', 'session-1');
+    insertConversation(db, conv, 'hash1');
+    insertExchange(db, makeExchange('ex-1', 'conv-1', 0, 'test question', 'test answer'));
+
+    // SQLite FTS5 treats hyphens as NOT operators — must not throw
+    await expect(searchConversations(db, 'test-driven')).resolves.toBeDefined();
+  });
+
+  test('returns results for hyphenated query matching individual words', async () => {
+    const conv = makeConversation('conv-1', 'session-1');
+    insertConversation(db, conv, 'hash1');
+    insertExchange(db, makeExchange('ex-1', 'conv-1', 0,
+      'What is test-driven development?',
+      'Test-driven development is a practice where you write tests first'
+    ));
+
+    const results = await searchConversations(db, 'test-driven');
+    expect(results.length).toBeGreaterThan(0);
+  });
 });
+

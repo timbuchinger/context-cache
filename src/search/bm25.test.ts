@@ -59,4 +59,19 @@ describe('BM25 Search', () => {
 
     expect(results).toHaveLength(1);
   });
+
+  test('handles queries with hyphens without throwing', () => {
+    // SQLite FTS5 treats hyphens as NOT operators, e.g. "test-driven" becomes
+    // "test NOT driven", which can cause "no such column" errors.
+    expect(() => bm25Search(db, 'test-driven', 10)).not.toThrow();
+  });
+
+  test('returns results for hyphenated query matching individual words', () => {
+    const chunkId = insertChunk(db, fileId, 3, 'TypeScript-based programming approach', 'TypeScript-based programming approach', null);
+    db.prepare('INSERT INTO chunks_fts (rowid, content) VALUES (?, ?)').run(chunkId, 'TypeScript-based programming approach');
+
+    // "TypeScript-based" should match chunks containing "TypeScript" and "based"
+    const results = bm25Search(db, 'TypeScript-based', 10);
+    expect(results.length).toBeGreaterThan(0);
+  });
 });
