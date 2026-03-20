@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "Override the computed release type (auto honors commit history)"
+        required: true
+        default: auto
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+          - none
+
+permissions:
+  contents: write
+  packages: write
+  issues: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run tests
+        run: npm test
+      - name: Build
+        run: npm run build
+
+  verify:
+    needs: tests
+    runs-on: ubuntu-latest
+    environment:
+      name: release-approval
+    outputs:
+      release_type: ${{ steps.capture.outputs.release_type }}
+      release_version: ${{ steps.compute-version.outputs.release_version || 'unknown' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - id: capture
+        run: echo "release_type=${{ github.event.inputs.release_type || 'auto' }}" >> "$GITHUB_OUTPUT"
+      - id: compute-version
+        if: steps.capture.outputs.release_type != 'none'
+        env:
+          RELEASE_TYPE_OVERRIDE: ${{ steps.capture.outputs.release_type }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          NO_COLOR: 1
+        run: |
+          set -euo pipefail
+          log=$(mktemp)
+          npx semantic-release --dry-run > "$log" 2>&1 || true
+          version=$(grep -o -m1 'The next release version is [^ ]*' "$log" | awk '{print $NF}' || true)
+          if [ -n "$version" ]; then
+            echo "release_version=$version" >> "$GITHUB_OUTPUT"
+          else
+            echo "release_version=unknown" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Approval summary
+        run: |
+          release_type=${{ steps.capture.outputs.release_type }}
+          release_version=${{ steps.compute-version.outputs.release_version || 'unknown' }}
+          echo "Manual approval recorded with release_type=$release_type"
+          if [ "$release_version" != "unknown" ]; then
+            echo "Upcoming release version: $release_version"
+          else
+            echo "Release version not determined (release_type=$release_type)"
+          fi
+
+  release:
+    needs: [tests, verify]
+    if: ${{ needs.verify.outputs.release_type != 'none' }}
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TYPE_OVERRIDE: ${{ needs.verify.outputs.release_type }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Pack artifact
+        env:
+          VERSION: ${{ needs.verify.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          # Update package.json version to match the computed release version
+          if [ -n "$VERSION" ] && [ "$VERSION" != "unknown" ]; then
+            npm version "$VERSION" --no-git-tag-version
+          fi
+          # Pack into dist/ so semantic-release can attach it as a release asset
+          npm pack --pack-destination dist/
+      - name: Publish release
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: npx semantic-release
