@@ -535,43 +535,51 @@ function setupHandlers(server: Server, dbPath: string): void {
 export async function runMCPServer(dbPath: string, options?: ServerOptions): Promise<void> {
   const { mode = 'stdio', port = 3000 } = options || {};
 
-  const server = new Server(
-    {
-      name: 'context-cache',
-      version: '1.0.0',
-    },
-    {
-      capabilities: {
-        tools: {},
-      },
-    }
-  );
-
-  setupHandlers(server, dbPath);
-
   if (mode === 'http') {
     const app = createMcpExpressApp({ host: '0.0.0.0' });
 
     // Streamable HTTP transport (MCP spec 2024-11-05+)
-    const streamableTransport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => require('crypto').randomUUID(),
-    });
+    // Each session gets its own Server + transport pair so that multiple agents
+    // can connect simultaneously without hitting "server already initialized".
+    const httpSessions = new Map<string, { transport: StreamableHTTPServerTransport; server: Server }>();
 
-    // Pass req.body explicitly — Express json() middleware already consumed the
-    // stream, so the transport must receive the pre-parsed body.
-    app.post('/mcp', (req: Request, res: Response) => {
-      streamableTransport.handleRequest(req, res, req.body);
-    });
+    const handleStreamableHttp = async (req: Request, res: Response) => {
+      const sessionId = req.headers['mcp-session-id'] as string | undefined;
 
-    app.get('/mcp', (req: Request, res: Response) => {
-      streamableTransport.handleRequest(req, res);
-    });
+      // Route existing session to its transport
+      if (sessionId && httpSessions.has(sessionId)) {
+        const { transport } = httpSessions.get(sessionId)!;
+        await transport.handleRequest(req, res, req.body);
+        return;
+      }
 
-    app.delete('/mcp', (req: Request, res: Response) => {
-      streamableTransport.handleRequest(req, res);
-    });
+      // New session — create a fresh Server + transport pair
+      const sessionTransport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => require('crypto').randomUUID(),
+      });
 
-    await server.connect(streamableTransport);
+      sessionTransport.onclose = () => {
+        if (sessionTransport.sessionId) {
+          httpSessions.delete(sessionTransport.sessionId);
+        }
+      };
+
+      const sessionServer = new Server(
+        { name: 'context-cache', version: '1.0.0' },
+        { capabilities: { tools: {} } }
+      );
+      setupHandlers(sessionServer, dbPath);
+      await sessionServer.connect(sessionTransport);
+      await sessionTransport.handleRequest(req, res, req.body);
+
+      if (sessionTransport.sessionId) {
+        httpSessions.set(sessionTransport.sessionId, { transport: sessionTransport, server: sessionServer });
+      }
+    };
+
+    app.post('/mcp', handleStreamableHttp);
+    app.get('/mcp', handleStreamableHttp);
+    app.delete('/mcp', handleStreamableHttp);
 
     // Legacy SSE transport (widely supported by AI agents)
     // GET /sse  — client opens SSE stream
@@ -615,6 +623,11 @@ export async function runMCPServer(dbPath: string, options?: ServerOptions): Pro
       httpServer.on('error', reject);
     });
   } else {
+    const server = new Server(
+      { name: 'context-cache', version: '1.0.0' },
+      { capabilities: { tools: {} } }
+    );
+    setupHandlers(server, dbPath);
     const transport = new StdioServerTransport();
     await server.connect(transport);
   }
