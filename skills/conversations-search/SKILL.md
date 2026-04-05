@@ -5,6 +5,10 @@ description: Search through conversation history to recover context, decisions, 
 
 # Conversations Search Skill
 
+## ⚠️ Important: Use Tools, Not Resources
+
+This MCP server exposes **tools only**. Do **not** use `read_mcp_resource` or any custom URI scheme — those will fail. Use the `conversations_search` and `conversation_show` tools below.
+
 ## MCP Tools Available
 
 ### 1. conversations_search
@@ -133,6 +137,7 @@ Use conversation_show with path and startLine: 1, endLine: 10 to read first 10 e
 - ❌ Only read excerpts without checking full context
 - ❌ Ignore warnings or caveats mentioned in past conversations
 - ❌ Assume past solutions are still current (always verify)
+- ❌ Use `read_mcp_resource` — this server has no resource handlers; use the tools above
 
 ## Integration with Current Task
 

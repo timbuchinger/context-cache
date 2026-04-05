@@ -88,9 +88,11 @@ Each skill contains a single `SKILL.md` file that provides:
 
 ## MCP Server
 
-The Context Cache MCP server exposes three tools:
+The Context Cache MCP server exposes three **tools** (no resources):
 - `kb_search` - Search knowledge base
 - `conversations_search` - Search conversation history
 - `conversation_show` - Display full conversations
+
+> **Note:** This server implements tools only. There is no resource support — do **not** use `read_mcp_resource` or any custom URI scheme (e.g. `kb://`). Those calls will fail.
 
 See `src/mcp/server.ts` for implementation details.

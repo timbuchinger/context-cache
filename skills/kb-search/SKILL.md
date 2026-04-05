@@ -5,6 +5,10 @@ description: Search through the user's markdown knowledge base to find relevant 
 
 # Knowledge Base Search Skill
 
+## ⚠️ Important: Use Tools, Not Resources
+
+This MCP server exposes **tools only**. Do **not** use `read_mcp_resource` or any `kb://` URI scheme — those will fail with an error. The only correct way to search the knowledge base is the `kb_search` tool below.
+
 ## MCP Tool Available
 
 ### kb_search
@@ -87,6 +91,7 @@ Use view with view_range to read specific lines from the file
 - ❌ Rely solely on snippets for complex topics
 - ❌ Ignore lower-scored results if they seem relevant
 - ❌ Quote information without verifying by viewing the source
+- ❌ Use `read_mcp_resource` or `kb://` URIs — this server has no resource handlers; use the `kb_search` tool
 
 ## Success Criteria
 
