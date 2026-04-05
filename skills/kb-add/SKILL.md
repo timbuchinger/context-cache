@@ -71,7 +71,55 @@ Use edit tool with:
 - new_str: <existing section + new content>
 ```
 
-### Step 5: Add Cross-Links
+### Step 5: Write or Update the Search Summary
+
+**Every KB document must have a `<!-- kb-summary -->` block immediately after the title.**
+
+```markdown
+# Document Title
+
+<!-- kb-summary -->
+> **Summary:** Dense, keyword-rich summary here. Up to 3 sentences.
+<!-- /kb-summary -->
+
+## First real section...
+```
+
+**For new files** — generate a summary and include it in the initial content.
+
+**For updated files** — if you made a material change (new sections, new technologies, changed approach), replace the existing summary block:
+```
+Use edit tool to replace the old <!-- kb-summary -->...<!-- /kb-summary --> block with a new one.
+```
+
+**How to write a good summary:**
+
+Ask yourself: *"What would a future agent search to find this page?"* Then write a summary that answers that question directly.
+
+- **Include:** all key technology names, tool names, command names, and domain vocabulary from the document
+- **Describe:** what problem is solved or what the content enables
+- **Mirror:** use the same terms as the document body (this boosts BM25 keyword matching)
+- **Avoid:** filler like "This document covers…" — be specific
+
+**Length:** Maximum **3 sentences or ~50 words** (whichever is shorter). Density matters more than completeness.
+
+**Example — too vague:**
+```markdown
+<!-- kb-summary -->
+> **Summary:** This document covers Docker setup and configuration steps for local development.
+<!-- /kb-summary -->
+```
+
+**Example — good (dense, specific):**
+```markdown
+<!-- kb-summary -->
+> **Summary:** Docker Compose configuration for local development with Node.js and PostgreSQL: service definitions, volume mounts, environment variable injection via `.env`, port mapping, and health checks. Covers common startup errors and how to reset container state with `docker compose down -v`.
+<!-- /kb-summary -->
+```
+
+**When NOT to update the summary:** Minor edits (typos, formatting tweaks, adding a single link) don't warrant a regeneration.
+
+### Step 6: Add Cross-Links
 
 **After writing content, always add links to related pages.**
 
@@ -119,8 +167,8 @@ Use the search results from Step 1 to identify related files, then:
 ### Writing Style
 
 Use clear markdown formatting:
-- Start with brief description
-- Use headings (##, ###)
+- Start with a title (`# Title`) followed immediately by a `<!-- kb-summary -->` block
+- Use headings (##, ###) for sections
 - Include code blocks with language tags
 - Add bullet points for lists
 - Link to related files with relative paths (e.g. `[Architecture](../repos/my-repo/architecture.md)`)
@@ -135,6 +183,8 @@ Use clear markdown formatting:
 - ✅ Include code examples
 - ✅ Document the "why" not just the "what"
 - ✅ Update index.md when adding new files
+- ✅ Add a `<!-- kb-summary -->` block after the title on every document
+- ✅ Regenerate the summary after material content changes
 - ✅ Add a `## See Also` section linking to related pages
 - ✅ Update related pages to link back when appropriate
 - ✅ Use relative paths for all internal links
@@ -153,6 +203,7 @@ You've successfully used this skill when:
 - ✅ Added content to appropriate file/location
 - ✅ Used clear markdown formatting
 - ✅ Included specific, useful information
+- ✅ Added or updated the `<!-- kb-summary -->` block
 - ✅ Added links to related pages (`## See Also` or inline)
 - ✅ Updated related pages to link back when relevant
 - ✅ Content is discoverable via kb-search
