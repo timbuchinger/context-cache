@@ -71,6 +71,33 @@ Use edit tool with:
 - new_str: <existing section + new content>
 ```
 
+### Step 5: Add Cross-Links
+
+**After writing content, always add links to related pages.**
+
+Use the search results from Step 1 to identify related files, then:
+
+1. **Link outward from the new/updated file** — add a `## See Also` section at the bottom (or inline links where natural):
+   ```markdown
+   ## See Also
+   - [Architecture Overview](../repos/my-repo/architecture.md) — how this fits the system
+   - [Deployment Guide](../repos/my-repo/deployment.md) — related deployment steps
+   - [Docker Setup](../topics/docker.md) — container configuration
+   ```
+
+2. **Link back from related files** — if a related page exists and would benefit from pointing to the new content, update it too:
+   ```
+   Use edit tool to add a link in the related file's "See Also" section or relevant paragraph
+   ```
+
+3. **Update index.md** — if a new file was created, add it to `~/git/knowledge-base/index.md`.
+
+**Linking guidelines:**
+- Use relative paths (e.g. `../topics/docker.md`, not absolute paths)
+- Link text should describe what the reader will find, not just the file name
+- Prioritize links that a reader would genuinely want to follow
+- 2–5 links is typical; don't force links just to have them
+
 ## Content Guidelines
 
 ### What to Document
@@ -96,7 +123,8 @@ Use clear markdown formatting:
 - Use headings (##, ###)
 - Include code blocks with language tags
 - Add bullet points for lists
-- Link to related files
+- Link to related files with relative paths (e.g. `[Architecture](../repos/my-repo/architecture.md)`)
+- Add a `## See Also` section at the bottom when related pages exist
 
 ## Best Practices
 
@@ -107,6 +135,9 @@ Use clear markdown formatting:
 - ✅ Include code examples
 - ✅ Document the "why" not just the "what"
 - ✅ Update index.md when adding new files
+- ✅ Add a `## See Also` section linking to related pages
+- ✅ Update related pages to link back when appropriate
+- ✅ Use relative paths for all internal links
 
 ### DON'T:
 - ❌ Create duplicate content
@@ -122,4 +153,6 @@ You've successfully used this skill when:
 - ✅ Added content to appropriate file/location
 - ✅ Used clear markdown formatting
 - ✅ Included specific, useful information
+- ✅ Added links to related pages (`## See Also` or inline)
+- ✅ Updated related pages to link back when relevant
 - ✅ Content is discoverable via kb-search
