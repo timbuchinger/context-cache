@@ -76,20 +76,26 @@ export CONTEXT_CACHE_CHUNK_OVERLAP="100"
 
 ### Embedding Configuration
 
-#### `CONTEXT_CACHE_EMBEDDING_MODEL`
+#### `OLLAMA_API_URL`
 
-Hugging Face model for generating embeddings.
+URL of the Ollama server used for generating embeddings.
 
-**Default:** `Xenova/all-MiniLM-L6-v2`
-
-**Supported models:**
-- `Xenova/all-MiniLM-L6-v2` (384 dimensions, fast, recommended)
-- `Xenova/all-mpnet-base-v2` (768 dimensions, more accurate, slower)
-- Any sentence-transformers model on Hugging Face
+**Default:** `http://localhost:11434`
 
 **Example:**
 ```bash
-export CONTEXT_CACHE_EMBEDDING_MODEL="Xenova/all-mpnet-base-v2"
+export OLLAMA_API_URL="http://ollama:11434"
+```
+
+#### `OLLAMA_EMBED_MODEL`
+
+Ollama model for generating embeddings.
+
+**Default:** `nomic-embed-text`
+
+**Example:**
+```bash
+export OLLAMA_EMBED_MODEL="nomic-embed-text"
 ```
 
 **Note:** Changing the model requires re-indexing all files.
@@ -140,9 +146,9 @@ Complete default configuration:
   chunkSize: 500,
   chunkOverlap: 50,
   
-  // Embedding
-  embeddingModel: "Xenova/all-MiniLM-L6-v2",
-  embeddingDimension: 384,
+  // Embedding (Ollama-based)
+  ollamaUrl: "http://localhost:11434",
+  ollamaEmbedModel: "nomic-embed-text",
   
   // Search
   searchLimit: 10,
@@ -252,10 +258,10 @@ export CONTEXT_CACHE_CHUNK_OVERLAP="80"
 
 ### Configuration 6: High Accuracy
 
-Use a more accurate (but slower) embedding model:
+Use a different Ollama embedding model:
 
 ```bash
-export CONTEXT_CACHE_EMBEDDING_MODEL="Xenova/all-mpnet-base-v2"
+export OLLAMA_EMBED_MODEL="mxbai-embed-large"
 export CONTEXT_CACHE_CHUNK_SIZE="600"
 ```
 
@@ -278,7 +284,8 @@ chunking:
   overlap: 50
   
 embedding:
-  model: Xenova/all-MiniLM-L6-v2
+  ollamaUrl: http://localhost:11434
+  ollamaEmbedModel: nomic-embed-text
   
 search:
   defaultLimit: 10

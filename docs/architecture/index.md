@@ -183,7 +183,7 @@ CREATE TABLE chunks (
 
 **Embedding Format:**
 - Type: `Float32Array` (32-bit floats)
-- Dimensions: 384 (for all-MiniLM-L6-v2)
+- Dimensions: 768 (for nomic-embed-text)
 - Storage: Binary BLOB (~1.5KB per embedding)
 
 ### Chunks FTS5 Table
@@ -283,7 +283,7 @@ graph TD
     H --> J{"More files?"}
     I --> K["Compute SHA256 hash"]
     K --> L["Split into chunks<br/>500 words + 50 word overlap"]
-    L --> M["Generate embeddings<br/>384-dim per chunk<br/>Xenova/all-MiniLM-L6-v2"]
+    L --> M["Generate embeddings<br/>via Ollama<br/>nomic-embed-text"]
     M --> N["Delete old chunks<br/>for this file"]
     N --> O["Insert file record<br/>with hash"]
     O --> P["Insert chunks with<br/>embeddings to DB"]
@@ -323,7 +323,7 @@ graph TD
 
 ```mermaid
 graph TD
-    A["User Query"] --> B["Generate query embedding<br/>Xenova/all-MiniLM-L6-v2"]
+    A["User Query"] --> B["Generate query embedding<br/>via Ollama (nomic-embed-text)"]
     B --> C["Parallel Search Process"]
     C --> D["BM25 Search<br/>SQLite FTS5"]
     C --> E["Vector Search<br/>Cosine Similarity"]
@@ -347,7 +347,7 @@ graph TD
 
 ```mermaid
 graph TD
-    A["User Query"] --> B["Generate query embedding<br/>Xenova/all-MiniLM-L6-v2"]
+    A["User Query"] --> B["Generate query embedding<br/>via Ollama (nomic-embed-text)"]
     B --> C["Parallel Search Process"]
     C --> D["BM25 Search<br/>Query FTS5 for exchanges"]
     C --> E["Vector Search<br/>Cosine Similarity"]
@@ -394,21 +394,21 @@ Using `better-sqlite3` (synchronous) instead of async alternatives:
 **Trade-offs:**
 - Blocks event loop (mitigated by fast operations)
 
-### Why Local Embeddings?
+### Why Ollama Embeddings?
 
-Using `@xenova/transformers` instead of API-based embeddings:
+Using Ollama for local embeddings instead of API-based services:
 
 **Advantages:**
 - No API keys required
 - No rate limits
 - Privacy (data stays local)
-- No network latency
-- Offline operation
+- Flexible model selection
+- Easy Docker deployment
 
 **Trade-offs:**
-- First-time model download (~80MB)
+- Requires Ollama running (as a process or Docker container)
 - Slower than cloud APIs
-- Limited to smaller models
+- Uses system resources for model inference
 
 ### Why Chunking with Overlap?
 
@@ -431,15 +431,15 @@ Using `@xenova/transformers` instead of API-based embeddings:
 
 **Adjustable:** Can be configured via `CONTEXT_CACHE_CHUNK_SIZE`
 
-### Why all-MiniLM-L6-v2?
+### Why nomic-embed-text?
 
 **Advantages:**
-- Fast inference (important for local execution)
-- Good quality (384 dimensions)
-- Small model size (~80MB)
-- Wide adoption in sentence-transformers
+- Fast inference
+- Good quality (768 dimensions)
+- Large context window (8192 tokens)
+- Easy to deploy via Ollama or Docker Compose
 
-**Alternative:** `all-mpnet-base-v2` (768 dim, slower, more accurate)
+**Alternative:** `mxbai-embed-large` (1024 dim, more accurate, slower)
 
 ## Performance Characteristics
 

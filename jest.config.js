@@ -9,7 +9,7 @@ module.exports = {
     '!src/**/*.d.ts'
   ],
   transformIgnorePatterns: [
-    'node_modules/(?!(@xenova/transformers)/)'
+    'node_modules/'
   ],
   transform: {
     '^.+\\.tsx?$': 'ts-jest',

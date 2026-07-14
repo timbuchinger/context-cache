@@ -378,8 +378,8 @@ npm test
 4. Update documentation (README.md, docs/usage.md)
 
 ### Embedding Model
-- Default: `Xenova/all-MiniLM-L6-v2` (384 dimensions)
-- Local, no API keys required
+- Default: `nomic-embed-text` via Ollama (768 dimensions)
+- Requires Ollama running locally or via Docker Compose
 - Use mock embedder in tests (fast, deterministic)
 
 ### Database

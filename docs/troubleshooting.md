@@ -50,36 +50,43 @@ npm install better-sqlite3 --build-from-source=false
 npm rebuild better-sqlite3
 ```
 
-### `@xenova/transformers` Model Download Fails
+### Cannot Connect to Ollama
 
-**Problem:** First-time model download fails or hangs
+**Problem:** Embedding generation fails with connection error
 
 **Symptoms:**
-- Timeout errors
-- Network errors
-- Incomplete download
+- `Cannot connect to Ollama at http://localhost:11434`
+- Timeout errors during indexing or search
 
-**Solution 1: Check Internet Connection**
-
-The model (~80MB) requires internet access on first use.
-
-**Solution 2: Manual Download**
+**Solution 1: Check Ollama Is Running**
 
 ```bash
-# Download model manually
-mkdir -p ~/.cache/huggingface/transformers
-cd ~/.cache/huggingface/transformers
+# Check if Ollama is running
+ollama list
 
-# Download from Hugging Face
-wget https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx
+# Start Ollama if needed
+ollama serve
 ```
 
-**Solution 3: Use Proxy**
+**Solution 2: Pull the Embedding Model**
 
 ```bash
-export HTTP_PROXY=http://proxy.example.com:8080
-export HTTPS_PROXY=http://proxy.example.com:8080
-npm test  # Trigger model download
+# Ensure the model is available
+ollama pull nomic-embed-text
+```
+
+**Solution 3: Use Docker Compose**
+
+Docker Compose handles Ollama startup and model pulling automatically:
+```bash
+docker compose up -d
+```
+
+**Solution 4: Check OLLAMA_API_URL**
+
+```bash
+# If Ollama is on a different host/port
+export OLLAMA_API_URL="http://ollama:11434"
 ```
 
 ### TypeScript Build Fails
@@ -329,9 +336,9 @@ sqlite3 ~/git/knowledge-base/db.sqlite "VACUUM;"
 sqlite3 ~/git/knowledge-base/db.sqlite "ANALYZE;"
 ```
 
-**Solution 4: Use Faster Model**
+**Solution 4: Check Ollama Performance**
 
-The default model (all-MiniLM-L6-v2) is already fast. Avoid switching to larger models.
+The default model (`nomic-embed-text`) is fast. If indexing is slow, check that Ollama has enough resources (especially in Docker).
 
 ## MCP Server Issues
 
@@ -469,9 +476,9 @@ Only changed files are reindexed. Subsequent runs are much faster.
 
 For large knowledge bases, consider batching (requires code modification).
 
-**Solution 2: Reduce Embedding Model Cache**
+**Solution 2: Reduce Ollama Memory Usage**
 
-The model stays in memory. This is expected (~200MB).
+The Ollama model stays in memory. This is expected. If running in Docker, ensure the container has enough memory allocated.
 
 **Solution 3: Check for Memory Leaks**
 

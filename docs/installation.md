@@ -4,9 +4,29 @@
 
 - **Node.js** 18.x or higher
 - **npm** 9.x or higher
+- **Ollama** - For local embeddings (or use Docker Compose, which includes it)
+- **Docker** and **Docker Compose** (for Docker-based setup)
 - **Operating System**: Linux, macOS, or Windows with WSL
 
 ## Quick Install
+
+### Option A: Docker Compose (Recommended)
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd context-cache
+
+# Start Ollama, the indexer, and MCP server
+docker compose up -d
+```
+
+This starts three services:
+- **ollama** — embedding model server (`nomic-embed-text`)
+- **kb-indexer** — automatically indexes `~/git/knowledge-base/`
+- **mcp-server** — HTTP MCP server on port 3001
+
+### Option B: Manual Install
 
 ```bash
 # Clone the repository
@@ -18,6 +38,10 @@ npm install
 
 # Build the project
 npm run build
+
+# Start Ollama (required for embeddings)
+ollama serve &
+ollama pull nomic-embed-text
 ```
 
 ## Detailed Installation
@@ -31,7 +55,7 @@ npm install
 This installs:
 - **TypeScript** - For compilation
 - **better-sqlite3** - SQLite database
-- **@xenova/transformers** - Local embeddings (no API keys needed)
+- **ollama** - Local embeddings via Ollama (no API keys needed)
 - **@modelcontextprotocol/sdk** - MCP protocol support
 - **Jest** - Testing framework
 
@@ -152,14 +176,15 @@ xcode-select --install
 npm rebuild better-sqlite3
 ```
 
-### Transformers Model Download
+### Ollama Not Running
 
-On first use, `@xenova/transformers` downloads the embedding model (~80MB). This happens automatically but requires internet access.
+Embeddings require Ollama running with the `nomic-embed-text` model. On first use, pull the model:
 
-The model is cached in:
+```bash
+ollama pull nomic-embed-text
 ```
-~/.cache/huggingface/transformers/
-```
+
+Or use Docker Compose, which handles this automatically.
 
 ### Permission Issues
 

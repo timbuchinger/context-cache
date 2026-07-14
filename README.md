@@ -9,8 +9,8 @@ A memory storage and retrieval system for AI coding agents. Context Cache enable
 ## ✨ Features
 
 - 🔍 **Hybrid Search** - Combines keyword (BM25) and semantic (vector) search
-- 🚀 **Zero Config** - Works out of the box with sensible defaults
-- 🧠 **Local Embeddings** - No API keys required, uses `@xenova/transformers`
+- 🚀 **Easy Setup** - Docker Compose for one-command startup
+- 🧠 **Ollama Embeddings** - Local embeddings via Ollama (`nomic-embed-text`)
 - 🔌 **MCP Server** - Integrates with Claude Desktop and other MCP clients
 - 🛠️ **CLI Tools** - Index, search, and view stats from command line
 - 📊 **Incremental Indexing** - Only reprocesses changed files
@@ -18,12 +18,34 @@ A memory storage and retrieval system for AI coding agents. Context Cache enable
 
 ## Quick Start
 
+### Using Docker Compose (Recommended)
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd context-cache
+
+# Start Ollama, the indexer, and MCP server
+docker compose up -d
+```
+
+This starts three services:
+- **ollama** — embedding model server (`nomic-embed-text`)
+- **kb-indexer** — automatically indexes `~/git/knowledge-base/`
+- **mcp-server** — HTTP MCP server on port 3001
+
+### Manual Setup
+
 ```bash
 # Install dependencies
 npm install
 
 # Build the project
 npm run build
+
+# Start Ollama (required for embeddings)
+ollama serve &
+ollama pull nomic-embed-text
 
 # Index your knowledge base
 cc-kb-index
@@ -90,7 +112,7 @@ See [Usage Guide](docs/usage.md) for detailed examples.
 - **TypeScript** - Type-safe development
 - **SQLite** with **FTS5** - Full-text search with BM25 ranking
 - **better-sqlite3** - Fast synchronous SQLite access
-- **@xenova/transformers** - Local embedding generation (384d)
+- **Ollama** - Local embedding generation via `nomic-embed-text`
 - **@modelcontextprotocol/sdk** - MCP protocol support
 - **Jest** - Testing framework with 100% coverage
 
