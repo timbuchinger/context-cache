@@ -16,6 +16,7 @@ services:
   kb-indexer:
     build: .
     image: context-cache-kb-indexer
+    pull_policy: build
     environment:
       # Override the default ~/git/knowledge-base paths so they work inside
       # the container regardless of the host user's home directory.
@@ -38,6 +39,7 @@ services:
   mcp-server:
     build: .
     image: context-cache-mcp-server
+    pull_policy: build
     ports:
       - "3001:3001"
     environment:
