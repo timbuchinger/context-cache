@@ -28,7 +28,7 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "@babel/core": "^7.29.7",
+    "@babel/core": "^8.0.1",
     "@babel/preset-env": "^7.29.7",
     "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/github": "^12.0.9",
